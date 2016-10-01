@@ -1,0 +1,5 @@
+model.pickle
+cluster_model.p
+mnist.pkl
+.pyc
+.pkl
