@@ -1,64 +1,47 @@
+# API imports
 import theano
 import timeit
 from theano import tensor as T
 from theano.tensor.nnet import conv2d
-import numpy
+import numpy as np
 import pickle
-from model_builder import build_lenet_model
-from data_helper import load_data
-from model_builder import build_lenet_layers
 
+# User defined imports
+from model_builder import build_lenet_layers
+from kmeans import k_means
+from kmeans import save_centroids
+from kmeans import load_centroids
+from lenet import get_image_patches
 from logistic_regression import LogisticRegression
 from hidden_layer import HiddenLayer
 
 
-def save_model(layers, savePath='model.pickle'):
+def save_model(layers, savePath):
     with open(savePath, 'wb') as f:
         pickle.dump([param.get_value() for layer in layers for param in layer.params ], f, protocol=pickle.HIGHEST_PROTOCOL)
 
-def load_model(loadPath='model.pickle'):
+def load_model(loadPath, rng, batchSize, x, inputShape, nkerns, filterShape):
     with open(loadPath, 'rb') as f:
-        layers = []
+        layersWeights = []
         pair = []
         count = 0
         for param in pickle.load(f):
             if count == 2:
-                layers.append(pair)
+                layersWeights.append(pair)
                 pair = []
                 count = 0
             pair.append(param)
             count += 1
-        layers.append(pair)
-        return layers
+        layersWeights.append(pair)
 
-def train_lenet5(datasets, batchSize = 500, nEpochs=200):
-    """ Implements LeNet
-    :type nkerns: list of ints
-    :param nkerns: number of conv kernels for the ith layer
-    """
+    return build_lenet_layers(rng, batchSize, layersWeights, x, inputShape, nkerns, filterShape)
 
-    # Load the data.
-    rng = numpy.random.RandomState()
 
-    trainSetX, trainSetY = datasets[0]
-    validateSetX, validateSetY = datasets[1]
-    testSetX, testSetY = datasets[2]
+def train_lenet5(trainSet, trainModel, layers, rng, batchSize, batchIndex, nEpochs=200):
+    trainSetX, trainSetY = trainSet
 
     # Get the number of batches for each data set.
-    nTrainBatches = datasets[0][0].get_value(borrow=True).shape[0] // batchSize
-    nValidateBatches = datasets[1][0].get_value(borrow=True).shape[0] // batchSize
-    nTestBatches = datasets[2][0].get_value(borrow=True).shape[0] // batchSize
-
-    # Index to the batch
-    index = T.lscalar()
-
-    models = build_lenet_model(batchIndex = index,
-                        batchSize=batchSize,
-                        rng = rng,
-                        trainSet = datasets[0],
-                        validateSet = datasets[1],
-                        testSet = datasets[2])
-    trainModel, validateModel, testModel, layers = models
+    nTrainBatches = trainSetX.get_value(borrow=True).shape[0] // batchSize
 
     startTime = timeit.default_timer()
 
@@ -78,73 +61,100 @@ def train_lenet5(datasets, batchSize = 500, nEpochs=200):
             if iter % 100 == 0:
                 print 'Training @ iter = ', iter
 
-            cost_ij = models[0](miniBatchIndex)
+            cost_ij = trainModel(miniBatchIndex)
 
     endTime = timeit.default_timer()
     print 'Optimization complete.'
     print 'Ran for %.2f' % (endTime - startTime)
 
-    # Run the validation set.
-    validationLosses = [
-        validateModel(i)
-        for i in range(nValidateBatches)
-    ]
-
-    validationScore = numpy.mean(validationLosses)
-
-    print 'Validation score %f %%' % (validationScore * 100.)
-
     return layers
 
-def create_model():
-    datasets = load_data('mnist.pkl')
-    model = train_lenet5(nEpochs = 1, datasets = datasets)
 
-    print '- Saving model'
-    save_model(layers=model)
+def build_patch_vecs(batchSize, trainSetX, inputShape, stride, filterShape):
+    patchVecs = []
+    total = len(trainSetX)
+    for i, trainX in enumerate(trainSetX):
+        if i % (total // 10) == 0:
+            print '%.2f%%' % ((float(i) / float(total)) * 100.)
+        patches = get_image_patches(trainX, inputShape, stride, filterShape)
+        for patch in patches:
+            patchVec = [col for row in patch for col in row]
+            patchVecs.append(patchVec)
+    return patchVecs
 
-def create_from_file(batchSize = 500):
-    layers = load_model()
-    datasets = load_data('mnist.pkl')
-    testSetX, testSetY = datasets[2]
-    nTestBatches = testSetX.get_value(borrow=True).shape[0] // batchSize
+def construct_centroids(batchSize, trainSetX, inputShape, stride, filterShape, nClusters):
+    print '- Building centroids'
+    patchVecs = build_patch_vecs(batchSize, trainSetX, inputShape, stride, filterShape)
+    centroids = k_means(patchVecs, nClusters)
+    print '- Finished building centroids'
+    return centroids
 
-    index = T.lscalar()
 
-    # The image data.
-    x = T.matrix('x')
-    # The label data. This is an integer vector
-    y = T.ivector('y')
+def load_or_create_centroids(forceCreate, filename, batchSize, trainSetX, inputShape, stride, filterShape, nkern):
 
-    rng = numpy.random.RandomState()
+    if not forceCreate:
+        try:
+            centroids = load_centroids(filename)
+        except IOError:
+            forceCreate = True
 
-    layers = build_lenet_layers(batchSize=batchSize,
-                                rng = rng,
-                                x = x,
-                                layers = layers)
+    if forceCreate:
+        centroids = construct_centroids(batchSize, trainSetX, inputShape, stride, filterShape, nkern)
+        save_centroids(centroids, filename)
 
-    outputLayer = layers[-1]
+    return centroids
 
-    conv1 = layers[0]
-    weights = conv1.W.get_value(borrow=True)
-    bias = conv1.b.get_value(borrow=True)
-    print weights.shape
-    print weights[0][0][0]
 
-    # testModel = theano.function(
-    #     [index],
-    #     outputLayer.errors(y),
+def create_pretrained(datasets, filterShape, stride, inputShape, nkerns, rng, batchSize, x, y, batchIndex):
+    sharedTrainSetX, sharedTrainSetY = datasets[0]
+    trainSetX = sharedTrainSetX.get_value(borrow=True)
+
+    centroids = load_or_create_centroids(False, 'centroids/centroids0.h5', batchSize, trainSetX, inputShape, stride, filterShape, nkerns[0])
+
+    nTrainBatches = trainSetX.shape[0] // batchSize
+
+    layers = build_lenet_layers(rng, batchSize, None, x, inputShape, nkerns, filterShape)
+    # layer0 = layers[0]
+    #
+    # # Set the weights of this filter.
+    # print 'Setting weights of first conv/pooling layer to centroids'
+    # layer0.W = centroids
+    #
+    # # Compute the output from this layer.
+    # runLayer0 = theano.function(
+    #     [batchIndex],
+    #     layer0.output,
     #     givens = {
-    #         x: testSetX[index * batchSize: (index + 1) * batchSize],
-    #         y: testSetY[index * batchSize: (index + 1) * batchSize]
+    #         x: sharedTrainSetX[batchIndex * batchSize: (batchIndex + 1) * batchSize]
     #     }
     # )
     #
-    # testLosses = [
-    #     testModel(i)
-    #     for i in range(nTestBatches)
+    # outputLayer0 = [
+    #     runLayer0(i)
+    #     for i in range(nTrainBatches)
     # ]
     #
-    # testScore = numpy.mean(testLosses)
+    # outputLayer0 = np.array(outputLayer0)
+    # # Flatten out the batches.
+    # flattenedOutput = []
+    # for batch in outputLayer0:
+    #     for subBatch in batch:
+    #         patchVec = []
+    #         for kernel in subBatch:
+    #             for ele in kernel:
+    #                 for row in ele:
+    #                     patchVec.append(row)
+    #         flattenedOutput.append(patchVec)
     #
-    # print '%.2f%%' % (testScore * 100.)
+    #
+    # flattenedOutput = np.array(flattenedOutput)
+    #
+    # centroidsLayer0 = load_or_create_centroids(False, 'centroids/centroids1.h5', batchSize, trainSetX, inputShape, stride, filterShape, nkerns[1])
+    #
+    # layer1 = layers[1]
+    # print 'Setting weights of second conv/pooling layer to centroids'
+    # layer1.W = centroidsLayer0
+    #
+    # layers = (layer0, layer1, layers[2], layers[3])
+
+    return layers

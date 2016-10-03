@@ -13,8 +13,8 @@ class LeNetConvPoolLayer(object):
             W, b = setParams
         else:
             fanIn = np.prod(filterShape[1:])
-            fanOut = (filterShape[0] * numpy.prod(filterShape[2:]) / numpy.prod(poolSize))
-            wBound = numpy.sqrt(6. / (fanIn + fanOut))
+            fanOut = (filterShape[0] * np.prod(filterShape[2:]) / np.prod(poolSize))
+            wBound = np.sqrt(6. / (fanIn + fanOut))
 
             # Output shape is product of array.
             W = np.asarray(

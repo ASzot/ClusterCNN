@@ -5,7 +5,8 @@ import theano
 import numpy
 from theano import tensor as T
 
-def build_lenet_layers(rng, batchSize, layers, x, imageSize=(28, 28), nkerns=[6, 16]):
+def build_lenet_layers(rng, batchSize, layers, x, imageSize, nkerns, filterShape):
+    print '- Building layers'
     if layers is None:
         layers = []
         for i in range(4):
@@ -21,7 +22,7 @@ def build_lenet_layers(rng, batchSize, layers, x, imageSize=(28, 28), nkerns=[6,
         rng,
         input = layer0Input,
         imageShape = (batchSize, 1, imageSize[0], imageSize[1]),
-        filterShape = (nkerns[0], 1, 5, 5),
+        filterShape = (nkerns[0], 1, filterShape[0], filterShape[1]),
         poolSize = (2, 2),
         setParams = layers[0]
     )
@@ -29,11 +30,12 @@ def build_lenet_layers(rng, batchSize, layers, x, imageSize=(28, 28), nkerns=[6,
     # Conv -> (12-5+1, 12-5+1) = (8, 8)
     # Pooling -> (8/2, 8/2) = (4, 4)
     # Output -> (batch_size, nkerns[1], 4, 4)
+    newImageSize = [((imageSize[i] - filterShape[i]+1) / 2) for i in range(2)]
     layer1 = LeNetConvPoolLayer(
         rng,
         input=layer0.output,
-        imageShape=(batchSize, nkerns[0], 12, 12),
-        filterShape=(nkerns[1], nkerns[0], 5, 5),
+        imageShape=(batchSize, nkerns[0], newImageSize[0], newImageSize[1]),
+        filterShape=(nkerns[1], nkerns[0], filterShape[0], filterShape[1]),
         poolSize=(2, 2),
         setParams = layers[1]
     )
@@ -42,10 +44,11 @@ def build_lenet_layers(rng, batchSize, layers, x, imageSize=(28, 28), nkerns=[6,
 
     # Output -> (batch_size, nkerns[1] * 4 * 4)
     # construct a fully-connected sigmoidal layer
+    newImageSize = [((imageSize[i] - filterShape[i] + 1) / 2) for i in range(2)]
     layer2 = HiddenLayer(
         rng,
         input=layer2Input,
-        nIn=nkerns[1] * 4 * 4,
+        nIn=nkerns[1] * newImageSize[0] * newImageSize[1],
         nOut=batchSize,
         activation=T.tanh,
         setParams = layers[2]
@@ -57,27 +60,23 @@ def build_lenet_layers(rng, batchSize, layers, x, imageSize=(28, 28), nkerns=[6,
                                 nOut=10,
                                 setParams = layers[3])
 
+    print '- Finished building layers'
+
     return (layer0, layer1, layer2, outputLayer)
 
 
 
-def build_lenet_model(batchIndex, trainSet, validateSet, testSet, rng, imageSize=(28, 28), nkerns=[20, 50], learningRate=0.1, batchSize=500, layers=None):
+def build_lenet_model(datasets, layers, x, y, batchIndex, batchSize, learningRate):
     print '- Building the model'
 
-
-    # The image data.
-    x = T.matrix('x')
-    # The label data. This is an integer vector
-    y = T.ivector('y')
-
-    layer0, layer1, layer2, outputLayer = build_lenet_layers(rng, batchSize, layers, x, imageSize, nkerns)
+    layer0, layer1, layer2, outputLayer = layers
 
     # the cost we minimize during training is the NLL of the model
     cost = outputLayer.negative_log_likelihood(y)
 
-    testSetX, testSetY = testSet
-    validateSetX, validateSetY = validateSet
-    trainSetX, trainSetY = trainSet
+    testSetX, testSetY = datasets[0]
+    validateSetX, validateSetY = datasets[1]
+    trainSetX, trainSetY = datasets[1]
 
     # create a function to compute the mistakes that are made by the model
     testModel = theano.function(
@@ -122,4 +121,4 @@ def build_lenet_model(batchIndex, trainSet, validateSet, testSet, rng, imageSize
 
     print '- Finished creating model'
 
-    return [trainModel, validateModel, testModel, [layer0, layer1, layer2, outputLayer]]
+    return [trainModel, validateModel, testModel]

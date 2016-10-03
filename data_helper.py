@@ -4,7 +4,7 @@ import numpy
 import os
 from theano import tensor as T
 
-def load_data(datasetPath='mnist.pkl', notShared=False):
+def load_data(nUseSamples, datasetPath='mnist.pkl', notShared=False):
     # Check in the current folder to see if the file exists.
     if (not os.path.isfile(datasetPath)):
         return None
@@ -16,6 +16,10 @@ def load_data(datasetPath='mnist.pkl', notShared=False):
             trainSet, validSet, testSet = pickle.load(f)
         except:
             return None
+
+    trainSet = (trainSet[0][0:nUseSamples], trainSet[1][0:nUseSamples])
+    validSet = (validSet[0][0:nUseSamples], validSet[1][0:nUseSamples])
+    testSet = (testSet[0][0:nUseSamples], testSet[1][0:nUseSamples])
 
     if notShared:
         return [trainSet, validSet, testSet]
