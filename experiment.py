@@ -114,47 +114,47 @@ def create_pretrained(datasets, filterShape, stride, inputShape, nkerns, rng, ba
     nTrainBatches = trainSetX.shape[0] // batchSize
 
     layers = build_lenet_layers(rng, batchSize, None, x, inputShape, nkerns, filterShape)
-    # layer0 = layers[0]
-    #
-    # # Set the weights of this filter.
-    # print 'Setting weights of first conv/pooling layer to centroids'
-    # layer0.W = centroids
-    #
-    # # Compute the output from this layer.
-    # runLayer0 = theano.function(
-    #     [batchIndex],
-    #     layer0.output,
-    #     givens = {
-    #         x: sharedTrainSetX[batchIndex * batchSize: (batchIndex + 1) * batchSize]
-    #     }
-    # )
-    #
-    # outputLayer0 = [
-    #     runLayer0(i)
-    #     for i in range(nTrainBatches)
-    # ]
-    #
-    # outputLayer0 = np.array(outputLayer0)
-    # # Flatten out the batches.
-    # flattenedOutput = []
-    # for batch in outputLayer0:
-    #     for subBatch in batch:
-    #         patchVec = []
-    #         for kernel in subBatch:
-    #             for ele in kernel:
-    #                 for row in ele:
-    #                     patchVec.append(row)
-    #         flattenedOutput.append(patchVec)
-    #
-    #
-    # flattenedOutput = np.array(flattenedOutput)
-    #
-    # centroidsLayer0 = load_or_create_centroids(False, 'centroids/centroids1.h5', batchSize, trainSetX, inputShape, stride, filterShape, nkerns[1])
-    #
-    # layer1 = layers[1]
-    # print 'Setting weights of second conv/pooling layer to centroids'
-    # layer1.W = centroidsLayer0
-    #
-    # layers = (layer0, layer1, layers[2], layers[3])
+    layer0 = layers[0]
+
+    # Set the weights of this filter.
+    print 'Setting weights of first conv/pooling layer to centroids'
+    layer0.W = centroids
+
+    # Compute the output from this layer.
+    runLayer0 = theano.function(
+        [batchIndex],
+        layer0.output,
+        givens = {
+            x: sharedTrainSetX[batchIndex * batchSize: (batchIndex + 1) * batchSize]
+        }
+    )
+
+    outputLayer0 = [
+        runLayer0(i)
+        for i in range(nTrainBatches)
+    ]
+
+    outputLayer0 = np.array(outputLayer0)
+    # Flatten out the batches.
+    flattenedOutput = []
+    for batch in outputLayer0:
+        for subBatch in batch:
+            patchVec = []
+            for kernel in subBatch:
+                for ele in kernel:
+                    for row in ele:
+                        patchVec.append(row)
+            flattenedOutput.append(patchVec)
+
+
+    flattenedOutput = np.array(flattenedOutput)
+
+    centroidsLayer0 = load_or_create_centroids(False, 'centroids/centroids1.h5', batchSize, trainSetX, inputShape, stride, filterShape, nkerns[1])
+
+    layer1 = layers[1]
+    print 'Setting weights of second conv/pooling layer to centroids'
+    layer1.W = centroidsLayer0
+
+    layers = (layer0, layer1, layers[2], layers[3])
 
     return layers

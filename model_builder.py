@@ -35,7 +35,7 @@ def build_lenet_layers(rng, batchSize, layers, x, imageSize, nkerns, filterShape
         rng,
         input=layer0.output,
         imageShape=(batchSize, nkerns[0], newImageSize[0], newImageSize[1]),
-        filterShape=(nkerns[1], nkerns[0], filterShape[0], filterShape[1]),
+        filterShape=(nkerns[1], nkerns[0], filterShape[0], filterShape[0]),
         poolSize=(2, 2),
         setParams = layers[1]
     )
@@ -44,7 +44,7 @@ def build_lenet_layers(rng, batchSize, layers, x, imageSize, nkerns, filterShape
 
     # Output -> (batch_size, nkerns[1] * 4 * 4)
     # construct a fully-connected sigmoidal layer
-    newImageSize = [((imageSize[i] - filterShape[i] + 1) / 2) for i in range(2)]
+    newImageSize = [((newImageSize[i] - filterShape[i] + 1) / 2) for i in range(2)]
     layer2 = HiddenLayer(
         rng,
         input=layer2Input,
