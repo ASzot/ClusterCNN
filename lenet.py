@@ -10,7 +10,10 @@ class LeNetConvPoolLayer(object):
         self.input = input
 
         if not setParams is None:
-            W, b = setParams
+            if len(setParams) == 2:
+                W, b = setParams
+            else:
+                W = setParams
         else:
             fanIn = np.prod(filterShape[1:])
             fanOut = (filterShape[0] * np.prod(filterShape[2:]) / np.prod(poolSize))
@@ -49,17 +52,9 @@ class LeNetConvPoolLayer(object):
 
 def get_image_patches(inputImg, inputShape, stride, filterShape):
     # Reconstruct the image as a matrix.
-    rows = []
-    for i in range(inputShape[0]):
-        row = []
-        for j in range(inputShape[1]):
-            row.append(inputImg[(i * inputShape[0]) + j])
-        rows.append(row)
-
-    imageMat = np.array(rows)
+    imageMat = inputImg.reshape(inputShape[0], inputShape[1])
 
     # Get the patch.
-
     rowOffset = 0
     colOffset = 0
     patches = []
