@@ -9,7 +9,6 @@ import warnings
 
 # User defined imports
 from model_builder import build_lenet_layers
-from kmeans import OnlineKMeans
 from kmeans import save_centroids
 from kmeans import load_centroids
 from lenet import get_image_patches
@@ -125,7 +124,7 @@ def create_pretrained(datasets, filterShape, stride, inputShape, nkerns, rng, ba
     sharedTrainSetX, sharedTrainSetY = datasets[0]
     trainSetX = sharedTrainSetX.get_value(borrow=True)
 
-    centroids = load_or_create_centroids(forceCreate, 'centroids/centroids0.h5', batchSize, trainSetX, inputShape, stride, filterShape, nkerns[0])
+    centroids = load_or_create_centroids(False, 'centroids/centroids0.h5', batchSize, trainSetX, inputShape, stride, filterShape, nkerns[0])
     sp = centroids.shape
     centroids = centroids.reshape(sp[0], filterShape[0], filterShape[1])
     sp = centroids.shape
@@ -159,8 +158,8 @@ def create_pretrained(datasets, filterShape, stride, inputShape, nkerns, rng, ba
     outputLayer0 = np.array(outputLayer0)
 
     # Rearrange so the filter count is first.
+    # The output of the volume is currently [(input size) / (batch size)]x[filter count]x[downsampled width]x[downsampled height]
     sp = outputLayer0.shape
-
     outputLayer0 = outputLayer0.reshape(sp[2], sp[0], sp[1], sp[3], sp[4])
     # Flatten out the batches.
     flattenedOutput = []
@@ -180,7 +179,6 @@ def create_pretrained(datasets, filterShape, stride, inputShape, nkerns, rng, ba
 
 
     filterFlattenedOutputs = np.array(filterFlattenedOutputs)
-    print filterFlattenedOutputs.shape
     allCentroidsLayer0 = []
 
     newInputShape = [((inputShape[i] - filterShape[i]+1) / 2) for i in range(2)]

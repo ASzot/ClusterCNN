@@ -15,9 +15,10 @@ inputShape = (28,28)
 nkerns = (6, 16)
 rng = np.random.RandomState()
 batchSize = 500
-nUseSamples = 5000
+nUseSamples = 10000
 learningRate = 0.1
 forceCreate = True
+nEpochs = 200
 
 batchIndex = T.lscalar()
 x = T.matrix('x')
@@ -53,7 +54,7 @@ except IOError:
     models = build_lenet_model(datasets, preTrainedLayers, x, y, batchIndex, batchSize, learningRate)
     trainModel = models[0]
     # Now train the algorithm using SGD
-    postTrainedLayers = train_lenet5(datasets[0], trainModel, preTrainedLayers, rng, batchSize, batchIndex)
+    postTrainedLayers = train_lenet5(datasets[0], trainModel, preTrainedLayers, rng, batchSize, batchIndex, nEpochs)
     save_model(postTrainedLayers, 'models/posttrained.h5')
 
 postTrainedParams = []
@@ -73,7 +74,7 @@ validationLosses = [
     for i in range(nValidateBatches)
 ]
 
-validationScore = np.mean(validationLosses)
+validationScore = 1. - np.mean(validationLosses)
 
 print 'Validation score %.2f%%' % (validationScore * 100.)
 
