@@ -42,6 +42,7 @@ class LogisticRegression(object):
         if y.ndim != self.yPred.ndim:
             raise TypeError('y should have the same shape as self.yPred')
         if y.dtype.startswith('int'):
+            # neq is the logical not equal.
             return T.mean(T.neq(self.yPred, y))
         else:
             raise NotImplementedError()

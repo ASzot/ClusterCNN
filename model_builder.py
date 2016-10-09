@@ -13,7 +13,7 @@ def build_lenet_layers(rng, batchSize, layers, x, imageSize, nkerns, filterShape
             layers.append(None)
 
     # Reshape to be compatable with input to LeNet
-    layer0Input = x.reshape((batchSize, 1, imageSize[0], imageSize[1]))
+    layer0Input = x.reshape((batchSize, imageSize[0], imageSize[1], imageSize[2]))
 
     # Conv -> (28-5+1 , 28-5+1) = (24, 24)
     # Pooling -> (24/2, 24/2) = (12, 12)
@@ -21,8 +21,8 @@ def build_lenet_layers(rng, batchSize, layers, x, imageSize, nkerns, filterShape
     layer0 = LeNetConvPoolLayer(
         rng,
         input = layer0Input,
-        imageShape = (batchSize, 1, imageSize[0], imageSize[1]),
-        filterShape = (nkerns[0], 1, filterShape[0], filterShape[1]),
+        imageShape = (batchSize, imageSize[0], imageSize[1], imageSize[2]),
+        filterShape = (nkerns[0], imageSize[0], filterShape[0], filterShape[1]),
         poolSize = (2, 2),
         setParams = layers[0]
     )
@@ -30,12 +30,16 @@ def build_lenet_layers(rng, batchSize, layers, x, imageSize, nkerns, filterShape
     # Conv -> (12-5+1, 12-5+1) = (8, 8)
     # Pooling -> (8/2, 8/2) = (4, 4)
     # Output -> (batch_size, nkerns[1], 4, 4)
-    newImageSize = [((imageSize[i] - filterShape[i]+1) / 2) for i in range(2)]
+    newImageSize = [
+        nkerns[0],
+        (imageSize[1] - filterShape[0]+1) / 2,
+        (imageSize[2] - filterShape[1]+1) / 2
+    ]
     layer1 = LeNetConvPoolLayer(
         rng,
         input=layer0.output,
-        imageShape=(batchSize, nkerns[0], newImageSize[0], newImageSize[1]),
-        filterShape=(nkerns[1], nkerns[0], filterShape[0], filterShape[0]),
+        imageShape=(batchSize, newImageSize[0], newImageSize[1], newImageSize[2]),
+        filterShape=(nkerns[1], newImageSize[0], filterShape[0], filterShape[1]),
         poolSize=(2, 2),
         setParams = layers[1]
     )
@@ -44,11 +48,15 @@ def build_lenet_layers(rng, batchSize, layers, x, imageSize, nkerns, filterShape
 
     # Output -> (batch_size, nkerns[1] * 4 * 4)
     # construct a fully-connected sigmoidal layer
-    newImageSize = [((newImageSize[i] - filterShape[i] + 1) / 2) for i in range(2)]
+    newImageSize = [
+        nkerns[1],
+        (newImageSize[1] - filterShape[0] + 1) / 2,
+        (newImageSize[2] - filterShape[1] + 1) / 2
+    ]
     layer2 = HiddenLayer(
         rng,
         input=layer2Input,
-        nIn=nkerns[1] * newImageSize[0] * newImageSize[1],
+        nIn=newImageSize[0] * newImageSize[1] * newImageSize[2],
         nOut=batchSize,
         activation=T.tanh,
         setParams = layers[2]
@@ -78,6 +86,7 @@ def build_lenet_model(datasets, layers, x, y, batchIndex, batchSize, learningRat
     validateSetX, validateSetY = datasets[1]
     trainSetX, trainSetY = datasets[1]
 
+    print '- Creating test model'
     # create a function to compute the mistakes that are made by the model
     testModel = theano.function(
         [batchIndex],
@@ -88,6 +97,7 @@ def build_lenet_model(datasets, layers, x, y, batchIndex, batchSize, learningRat
         }
     )
 
+    print '- Creating validate model'
     validateModel = theano.function(
         [batchIndex],
         outputLayer.errors(y),
@@ -104,11 +114,13 @@ def build_lenet_model(datasets, layers, x, y, batchIndex, batchSize, learningRat
     gradients = T.grad(cost, params)
 
     # SGD update
+    print '- Creating train updates.'
     updates = [
         (iParam, iParam - learningRate * iGrad)
         for iParam, iGrad in zip(params, gradients)
     ]
 
+    print '- Creating train model'
     trainModel = theano.function(
         [batchIndex],
         cost,

@@ -52,16 +52,18 @@ class LeNetConvPoolLayer(object):
 
 def get_image_patches(inputImg, inputShape, stride, filterShape):
     # Reconstruct the image as a matrix.
-    imageMat = inputImg.reshape(inputShape[0], inputShape[1])
+    # imageMat = inputImg.reshape(inputShape[0], inputShape[1], inputShape[2])
 
     # Get the patch.
     rowOffset = 0
     colOffset = 0
     patches = []
-    while rowOffset < inputShape[0] - filterShape[0]:
-        while colOffset < inputShape[1] - filterShape[1]:
-            patch = imageMat[rowOffset:rowOffset+filterShape[0], colOffset:colOffset+filterShape[1]]
-            patches.append(patch)
+
+    # Remember the receptive field acts across the entire depth parameter.
+    while rowOffset < inputShape[1] - filterShape[0]:
+        while colOffset < inputShape[2] - filterShape[1]:
+            patch = [filterMat[rowOffset:rowOffset+filterShape[0], colOffset:colOffset+filterShape[1]] for filterMat in inputImg]
+            patches.append(np.array(patch))
             colOffset += stride[1]
         rowOffset += stride[0]
         colOffset = 0

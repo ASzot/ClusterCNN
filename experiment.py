@@ -79,7 +79,7 @@ def build_patch_vecs(batchSize, trainSetX, inputShape, stride, filterShape):
             print '%.2f%%' % ((float(i) / float(total)) * 100.)
         patches = get_image_patches(trainX, inputShape, stride, filterShape)
 
-        addPatchVecs = [patch.reshape(patch.shape[0] * patch.shape[0]) for patch in patches]
+        addPatchVecs = [patch.reshape(patch.shape[0] * patch.shape[1] * patch.shape[2]) for patch in patches]
         patchVecs.extend(addPatchVecs)
     return patchVecs
 
@@ -121,18 +121,22 @@ def load_or_create_centroids(forceCreate, filename, batchSize, inpData, inputSha
 
 
 def create_pretrained(datasets, filterShape, stride, inputShape, nkerns, rng, batchSize, x, y, batchIndex, forceCreate):
-    sharedTrainSetX, sharedTrainSetY = datasets[0]
-    trainSetX = sharedTrainSetX.get_value(borrow=True)
-
-    centroids = load_or_create_centroids(False, 'centroids/centroids0.h5', batchSize, trainSetX, inputShape, stride, filterShape, nkerns[0])
-    sp = centroids.shape
-    centroids = centroids.reshape(sp[0], filterShape[0], filterShape[1])
-    sp = centroids.shape
-    centroids = centroids.reshape(sp[0], 1, sp[1], sp[2])
-
-    nTrainBatches = trainSetX.shape[0] // batchSize
+    # sharedTrainSetX, sharedTrainSetY = datasets[0]
+    # trainSetX = sharedTrainSetX.get_value(borrow=True)
+    #
+    # sp = trainSetX.shape
+    # trainSetX = trainSetX.reshape(sp[0], inputShape[0], inputShape[1], inputShape[2])
+    # centroids = load_or_create_centroids(forceCreate, 'centroids/centroids0.h5', batchSize, trainSetX, inputShape, stride, filterShape, nkerns[0])
+    #
+    # sp = centroids.shape
+    # centroids = centroids.reshape(sp[0], 1, filterShape[0], filterShape[1])
+    #
+    # nTrainBatches = trainSetX.shape[0] // batchSize
 
     layers = build_lenet_layers(rng, batchSize, None, x, inputShape, nkerns, filterShape)
+    return layers
+
+    
     layer0 = layers[0]
 
     # Set the weights of this filter.
@@ -158,44 +162,23 @@ def create_pretrained(datasets, filterShape, stride, inputShape, nkerns, rng, ba
     outputLayer0 = np.array(outputLayer0)
 
     # Rearrange so the filter count is first.
-    # The output of the volume is currently [(input size) / (batch size)]x[filter count]x[downsampled width]x[downsampled height]
+    # The output of the volume is currently [(input size) / (batch size)]x[batch size]x[filter count]x[downsampled width]x[downsampled height]
     sp = outputLayer0.shape
-    outputLayer0 = outputLayer0.reshape(sp[2], sp[0], sp[1], sp[3], sp[4])
-    # Flatten out the batches.
-    flattenedOutput = []
 
-    filterFlattenedOutputs = []
-    for kernel in outputLayer0:
-        filterFlattenedOutput = []
-        for batch in kernel:
-            for subBatch in batch:
-                patchVec = []
-                for ele in subBatch:
-                    for row in ele:
-                        patchVec.append(row)
-                filterFlattenedOutput.append(patchVec)
+    outputLayer0 = outputLayer0.reshape(sp[0] * sp[1], sp[2], sp[3], sp[4])
 
-        filterFlattenedOutputs.append(filterFlattenedOutput)
+    newInputShape = [
+        nkerns[1],
+        sp[3],
+        sp[4]
+    ]
 
+    centroidsLayer0 = load_or_create_centroids(forceCreate, 'centroids1.h5', batchSize, outputLayer0, newInputShape, stride, filterShape, nkerns[1]);
 
-    filterFlattenedOutputs = np.array(filterFlattenedOutputs)
-    allCentroidsLayer0 = []
-
-    newInputShape = [((inputShape[i] - filterShape[i]+1) / 2) for i in range(2)]
-    # Do for every filter.
-    for i, flattenedOutputs in enumerate(filterFlattenedOutputs):
-        filename = 'centroids/centroidsL0_%i.h5' % (i)
-        centroidsLayer0 = load_or_create_centroids(forceCreate, filename, batchSize, flattenedOutputs, newInputShape, stride, filterShape, nkerns[1])
-        # Convert back to the matrix form.
-        sp = centroidsLayer0.shape
-        centroidsLayer0 = centroidsLayer0.reshape(sp[0], filterShape[0], filterShape[1])
-        allCentroidsLayer0.append(centroidsLayer0)
-
-    allCentroidsLayer0 = np.array(allCentroidsLayer0)
-    sp = allCentroidsLayer0.shape
-    allCentroidsLayer0 = allCentroidsLayer0.reshape(sp[1], sp[0], sp[2], sp[3])
+    sp = centroidsLayer0.shape
+    centroidsLayer0 = centroidsLayer0.reshape(sp[0], nkerns[0], filterShape[0], filterShape[1])
 
     print 'Setting weights of second conv/pooling layer to centroids'
-    layers[1].W.set_value(allCentroidsLayer0, borrow=True)
+    layers[1].W.set_value(centroidsLayer0, borrow=True)
 
     return layers
