@@ -3,3 +3,5 @@ centroids
 models
 *.pyc
 *.pkl
+testing
+data
