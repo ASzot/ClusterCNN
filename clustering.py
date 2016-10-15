@@ -1,16 +1,25 @@
-from sklearn.cluster import MiniBatchKMeans
+from sklearn.cluster import MiniBatchKMeans, KMeans
 import pickle
 import numpy as np
 import warnings
+from sklearn.spatial.distance import cosine_distance
 
+
+def new_euclidean_distances(X, Y=None, Y_norm_squared=None, squared=False):
+    # Use the cosine distance instead of the eulicidean distance.
+    return cosine_distance(X, Y)
+
+# This should work for k means mini batch as well.
+from sklearn.cluster import k_means_k_means_.euclidean_distances
+k_means_.euclidean_distances = new_euclidean_distances
 
 def kmeans(inputData, k, batch_size):
     mbk = MiniBatchKMeans(init='k-means++',
                         n_clusters=k,
                         batch_size=batch_size,
-                        max_no_improvement=10,
-                        reassignment_ratio=0.01,
-                        verbose=True)
+                        verbose=False)
+
+    # mbk = KMeans(init='k-means++', n_clusters=k, verbose=True)
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -50,6 +59,10 @@ def build_patch_vecs(dataSetX, inputShape, stride, filterShape):
         # Flatten each of the vectors.
         addPatchVecs = [patch.reshape(patch.shape[0] * patch.shape[1] * patch.shape[2]) for patch in patches]
         patchVecs.extend(addPatchVecs)
+
+    with open('data/tmp.h5', 'wb') as f:
+        pickle.dump(patchVecs, f)
+
     return patchVecs
 
 
@@ -65,17 +78,36 @@ def load_centroids(filename):
         centroids = pickle.load(f)
         return centroids
 
-def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape, k):
+def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape, k, convolute):
     print '- Building centroids'
-    patchVecs = build_patch_vecs(trainSetX, input_shape, stride, filter_shape)
-    mod_batch_size = (len(patchVecs) // len(trainSetX)) * batch_size
-    centroids = kmeans(patchVecs, k, mod_batch_size)
-    # Expand each of the vectors.
-    sp = centroids.shape
-    return centroids.reshape(sp[0], input_shape[0], filter_shape[0], filter_shape[1])
+
+    if convolute:
+        clusterVecs = build_patch_vecs(trainSetX, input_shape, stride, filter_shape)
+    else:
+        # Flatten the input.
+        sp = trainSetX.shape
+
+        # Not garunteed to be 3 dimensions as the input will be flattened.
+        # This is different than performing the convolution where it has to be 3 dimensional.
+        input_shape_prod = 1.0
+        for input_shape_dim in input_shape:
+            input_shape_prod = input_shape_prod * input_shape_dim
+        print 'Reshaping'
+        print sp
+        print input_shape_prod
+        clusterVecs = trainSetX.reshape(sp[0], input_shape_prod)
+
+    # mod_batch_size = (len(clusterVecs) // len(trainSetX)) * batch_size
+    centroids = kmeans(clusterVecs, k, batch_size)
+    if convolute:
+        # Expand the output.
+        sp = centroids.shape
+        return centroids.reshape(sp[0], input_shape[0], filter_shape[0], filter_shape[1])
+    else:
+        return centroids
 
 
-def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_shape, stride, filter_shape, k):
+def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute=True):
     if not forceCreate:
         try:
             centroids = load_centroids(filename)
@@ -83,7 +115,7 @@ def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_
             forceCreate = True
 
     if forceCreate:
-        centroids = construct_centroids(batch_size, dataSetX, input_shape, stride, filter_shape, k)
+        centroids = construct_centroids(batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute)
         save_centroids(centroids, filename)
 
     return centroids
