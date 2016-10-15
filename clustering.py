@@ -3,33 +3,14 @@ import pickle
 import numpy as np
 import warnings
 from sklearn.metrics.pairwise import cosine_distances
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.metrics import pairwise
 import sklearn.preprocessing as preprocessing
-
-
-def new_euclidean_distances(X, Y=None, Y_norm_squared=None, squared=False):
-    # Use the cosine distance instead of the eulicidean distance.
-    return cosine_distances(X, Y)
+from clustering_cosine import cosine_kmeans
 
 def kmeans(inputData, k, batch_size):
-    # This should work for k means mini batch as well.
-    from sklearn.metrics.pairwise import euclidean_distances
-    old_euclidean_distances = pairwise.euclidean_distances
-    pairwise.euclidean_distances = new_euclidean_distances
-
-    mbk = MiniBatchKMeans(init='k-means++',
-                        n_clusters=k,
-                        batch_size=batch_size,
-                        verbose=False)
-
-    # mbk = KMeans(init='k-means++', n_clusters=k, verbose=True)
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        mbk.fit(inputData)
-
-    pairwise.euclidean_distances = old_euclidean_distances
-
-    return mbk.cluster_centers_
+    return cosine_kmeans(inputData, k)
 
 
 def get_image_patches(inputImg, inputShape, stride, filterShape):
@@ -63,9 +44,6 @@ def build_patch_vecs(dataSetX, inputShape, stride, filterShape):
         # Flatten each of the vectors.
         addPatchVecs = [patch.reshape(patch.shape[0] * patch.shape[1] * patch.shape[2]) for patch in patches]
         patchVecs.extend(addPatchVecs)
-
-    with open('data/tmp.h5', 'wb') as f:
-        pickle.dump(patchVecs, f)
 
     return patchVecs
 
@@ -101,8 +79,10 @@ def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape
     # mod_batch_size = (len(clusterVecs) // len(trainSetX)) * batch_size
 
     # All vectors must be normalized for cosine distance.
+    print 'Normalizing vecotrs'
     clusterVecs = preprocessing.normalize(clusterVecs, norm='l2')
 
+    print 'Beginning k - menas'
     centroids = kmeans(clusterVecs, k, batch_size)
     if convolute:
         # Expand the output.

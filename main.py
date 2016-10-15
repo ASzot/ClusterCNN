@@ -16,6 +16,7 @@ from sklearn import datasets
 from keras.optimizers import SGD
 from keras.utils import np_utils
 import numpy as np
+import pickle
 
 def add_convlayer(model, nkern, subsample, filter_size, input_shape=None, weights=None):
 
@@ -29,25 +30,8 @@ def add_convlayer(model, nkern, subsample, filter_size, input_shape=None, weight
     if not weights is None:
         params = convLayer.get_weights()
         bias = params[1]
-        startWeights = params[0]
 
         convLayer.set_weights([weights, bias])
-        afterWeights = convLayer.get_weights()[0]
-
-        # Get the difference between the two.
-        sp = weights.shape
-        prod = 1
-        for dim in sp:
-            prod *= dim
-
-        startWeights = startWeights.reshape(prod)
-        afterWeights = afterWeights.reshape(prod)
-
-
-        distance = np.linalg.norm(startWeights - afterWeights)
-        print 'distance is %.9f' % (distance)
-
-        raise ValueError()
 
 
     model.add(Activation('relu'))
@@ -101,7 +85,7 @@ def fetch_data(test_size):
     return train_test_split(data / 255.0, dataset.target.astype('int'), test_size=test_size)
 
 
-def run_experiment(test_size, shouldSetWeights):
+def create_model(test_size, shouldSetWeights):
     (trainData, testData, trainLabels, testLabels) = fetch_data(test_size)
 
     print 'The training data has a length of %i' % (len(trainData))
@@ -116,27 +100,23 @@ def run_experiment(test_size, shouldSetWeights):
     nkerns = (6, 16)
     forceCreate = True
 
-    input0Centroids = None
-    input1Centroids = None
-    input2Centroids = None
-    input3Centroids = None
-    input4Centroids = None
+    inputCentroids = [None] * 5
 
     model = Sequential()
 
     if shouldSetWeights[0]:
         print 'Setting conv layer 0 weights'
-        input0Centroids = load_or_create_centroids(forceCreate, 'data/centroids/centroids0.h5', batch_size, trainData, input_shape, subsample, filter_size, nkerns[0])
+        inputCentroids[0] = load_or_create_centroids(forceCreate, 'data/centroids/centroids0.h5', batch_size, trainData, input_shape, subsample, filter_size, nkerns[0])
 
-    convout0_f = add_convlayer(model, nkerns[0], subsample, filter_size, input_shape=input_shape, weights=input0Centroids)
+    convout0_f = add_convlayer(model, nkerns[0], subsample, filter_size, input_shape=input_shape, weights=inputCentroids[0])
 
     if shouldSetWeights[1]:
         print 'Setting conv layer 1 weights'
         c0Out = convout0_f([trainData])[0]
         input_shape = (nkerns[0], 14, 14)
-        input1Centroids = load_or_create_centroids(forceCreate, 'data/centroids/centroids1.h5', batch_size, c0Out, input_shape, subsample, filter_size, nkerns[1])
+        inputCentroids[1] = load_or_create_centroids(forceCreate, 'data/centroids/centroids1.h5', batch_size, c0Out, input_shape, subsample, filter_size, nkerns[1])
 
-    convout1_f = add_convlayer(model, nkerns[1], subsample, filter_size, input_shape=input_shape, weights=input1Centroids)
+    convout1_f = add_convlayer(model, nkerns[1], subsample, filter_size, input_shape=input_shape, weights=inputCentroids[1])
 
 
     model.add(Flatten())
@@ -145,36 +125,36 @@ def run_experiment(test_size, shouldSetWeights):
         print 'Setting fc layer 0 weights'
         c1Out = convout1_f([trainData])[0]
         input_shape = (nkerns[1], 7, 7)
-        input2Centroids = load_or_create_centroids(forceCreate, 'data/centroids/centroids2.h5', batch_size, c1Out, input_shape, subsample, filter_size, 120, convolute=False)
-        sp = input2Centroids.shape
-        input2Centroids = input2Centroids.reshape(sp[1], sp[0])
+        inputCentroids[2] = load_or_create_centroids(forceCreate, 'data/centroids/centroids2.h5', batch_size, c1Out, input_shape, subsample, filter_size, 120, convolute=False)
+        sp = inputCentroids[2].shape
+        inputCentroids[2] = inputCentroids[2].reshape(sp[1], sp[0])
 
-    fc0_f = add_fclayer(model, 120, weights=input2Centroids)
+    fc0_f = add_fclayer(model, 120, weights=inputCentroids[2])
 
     if shouldSetWeights[3]:
         print 'Setting fc layer 1 weights'
         fc0Out = fc0_f([trainData])[0]
         input_shape = (120,)
-        input3Centroids = load_or_create_centroids(forceCreate, 'data/centroids/centroids3.h5', batch_size, fc0Out, input_shape, subsample, filter_size, 84, convolute=False)
-        sp = input3Centroids.shape
-        input3Centroids = input3Centroids.reshape(sp[1], sp[0])
+        inputCentroids[3] = load_or_create_centroids(forceCreate, 'data/centroids/centroids3.h5', batch_size, fc0Out, input_shape, subsample, filter_size, 84, convolute=False)
+        sp = inputCentroids[3].shape
+        inputCentroids[3] = inputCentroids[3].reshape(sp[1], sp[0])
 
-    fc1_f = add_fclayer(model, 84, weights=input3Centroids)
+    fc1_f = add_fclayer(model, 84, weights=inputCentroids[3])
 
     if shouldSetWeights[4]:
         print 'Setting classifier weights'
         fc1Out = fc1_f([trainData])[0]
         input_shape=(84,)
-        input4Centroids = load_or_create_centroids(forceCreate, 'data/centroids/centroids4.h5', batch_size, fc1Out, input_shape, subsample, filter_size, 10, convolute=False)
-        sp = input4Centroids.shape
-        input4Centroids = input4Centroids.reshape(sp[1], sp[0])
+        inputCentroids[4] = load_or_create_centroids(forceCreate, 'data/centroids/centroids4.h5', batch_size, fc1Out, input_shape, subsample, filter_size, 10, convolute=False)
+        sp = inputCentroids[4].shape
+        inputCentroids[4] = inputCentroids[4].reshape(sp[1], sp[0])
 
     classificationLayer = Dense(10)
     model.add(classificationLayer)
 
     if shouldSetWeights[4]:
         bias = classificationLayer.get_weights()[1]
-        classificationLayer.set_weights([input4Centroids, bias])
+        classificationLayer.set_weights([inputCentroids[4], bias])
 
     model.add(Activation('softmax'))
 
@@ -188,17 +168,20 @@ def run_experiment(test_size, shouldSetWeights):
 
     # print 'Saving'
     # model.save_weights(save_model_filename)
-    return ModelWrapper(model, accuracy)
+    return ModelWrapper(accuracy, inputCentroids)
 
 
-model0 = run_experiment(0.3, [True] * 5)
-model1 = run_experiment(0.3, [False] * 5)
+def run_experiment():
+    base_model = create_model(0.3, [False] * 5)
+    test_size = 0.95
+    all_models = [base_model]
+    while test_size > 0.3:
+        model = create_model(test_size, [True] * 5)
+        all_models.append(model)
+        test_size -= 0.05
 
-print 'M0 had an accuracy of %.9f' % (model0.accuracy * 100.)
-print 'M1 had an accuracy of %.9f' % (model1.accuracy * 100.)
+    with open('data/models.h5', 'wb') as f:
+        pickle.dump(all_models)
 
-# for i in range(1):
-#     filename = '/model' + str(i) + '.h5'
-#     print filename
-#     model = load_model(filename)
-#     get_weight_angles(model)
+
+run_experiment()
