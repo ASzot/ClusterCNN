@@ -71,9 +71,26 @@ def add_fclayer(model, output_dim, weights=None):
     fcOut_f = K.function([model.layers[0].input], [fcOutLayer.output])
     return fcOut_f
 
-def get_weight_angles(model0):
-    for layer in model0.layers:
-        print layer
+def get_anchor_vectors(model0):
+    anchor_vectors = []
+    for layer in model0.model.layers:
+        params = layer.get_weights()
+        if len(params) > 0:
+            weights = params[0]
+            if len(weights.shape) > 2:
+                # This is a convolution layer
+                add_anchor_vectors = []
+                for conv_filter in weights:
+                    conv_filter = conv_filter.flatten()
+                    add_anchor_vectors.append(conv_filter)
+                anchor_vectors.append(add_anchor_vectors)
+            else:
+                sp = weights.shape
+                weights = weights.reshape(sp[1], sp[2])
+                anchor_vectors.append(weights)
+
+        return anchor_vectors
+
 
 def fetch_data(test_size):
     dataset = datasets.fetch_mldata('MNIST Original')
@@ -81,7 +98,7 @@ def fetch_data(test_size):
     data = data[:, np.newaxis, :, :]
     print 'Running for %.2f%% test size' % (test_size * 100.)
 
-    (trainData, testData, trainLabels, testLabels) = train_test_split(data / 255.0, dataset.target.astype('int'), test_size=test_size)
+    return train_test_split(data / 255.0, dataset.target.astype('int'), test_size=test_size)
 
 
 def run_experiment(test_size, shouldSetWeights):
@@ -173,14 +190,12 @@ def run_experiment(test_size, shouldSetWeights):
     # model.save_weights(save_model_filename)
     return ModelWrapper(model, accuracy)
 
-#
-model0 = run_experiment(0.5, [True] * 5)
-model1 = run_experiment(0.9, [False] * 5)
+
+model0 = run_experiment(0.3, [True] * 5)
+model1 = run_experiment(0.3, [False] * 5)
 
 print 'M0 had an accuracy of %.9f' % (model0.accuracy * 100.)
-# print 'M1 had an accuracy of %.9f' % (model1.accuracy * 100.)
-
-
+print 'M1 had an accuracy of %.9f' % (model1.accuracy * 100.)
 
 # for i in range(1):
 #     filename = '/model' + str(i) + '.h5'

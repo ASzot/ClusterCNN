@@ -2,18 +2,20 @@ from sklearn.cluster import MiniBatchKMeans, KMeans
 import pickle
 import numpy as np
 import warnings
-from sklearn.spatial.distance import cosine_distance
+from sklearn.metrics.pairwise import cosine_distances
+import sklearn.preprocessing as preprocessing
 
 
 def new_euclidean_distances(X, Y=None, Y_norm_squared=None, squared=False):
     # Use the cosine distance instead of the eulicidean distance.
-    return cosine_distance(X, Y)
-
-# This should work for k means mini batch as well.
-from sklearn.cluster import k_means_k_means_.euclidean_distances
-k_means_.euclidean_distances = new_euclidean_distances
+    return cosine_distances(X, Y)
 
 def kmeans(inputData, k, batch_size):
+    # This should work for k means mini batch as well.
+    from sklearn.metrics.pairwise import euclidean_distances
+    old_euclidean_distances = pairwise.euclidean_distances
+    pairwise.euclidean_distances = new_euclidean_distances
+
     mbk = MiniBatchKMeans(init='k-means++',
                         n_clusters=k,
                         batch_size=batch_size,
@@ -24,6 +26,8 @@ def kmeans(inputData, k, batch_size):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         mbk.fit(inputData)
+
+    pairwise.euclidean_distances = old_euclidean_distances
 
     return mbk.cluster_centers_
 
@@ -92,12 +96,13 @@ def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape
         input_shape_prod = 1.0
         for input_shape_dim in input_shape:
             input_shape_prod = input_shape_prod * input_shape_dim
-        print 'Reshaping'
-        print sp
-        print input_shape_prod
         clusterVecs = trainSetX.reshape(sp[0], input_shape_prod)
 
     # mod_batch_size = (len(clusterVecs) // len(trainSetX)) * batch_size
+
+    # All vectors must be normalized for cosine distance.
+    clusterVecs = preprocessing.normalize(clusterVecs, norm='l2')
+
     centroids = kmeans(clusterVecs, k, batch_size)
     if convolute:
         # Expand the output.
