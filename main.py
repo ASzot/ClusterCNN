@@ -88,6 +88,8 @@ def fetch_data(test_size):
 
 
 def create_model(train_percentage, should_set_weights):
+    # Break the data up into test and training set.
+    # This will be set at 0.3 is test and 0.7 is training. 
     (train_data, test_data, train_labels, test_labels) = fetch_data(0.3)
 
     remaining = int(len(train_data) * train_percentage)
@@ -95,6 +97,7 @@ def create_model(train_percentage, should_set_weights):
     train_labels = np_utils.to_categorical(train_labels, 10)
     test_labels = np_utils.to_categorical(test_labels, 10)
 
+    # Only use a given amount of the training data.
     train_data = train_data[0:remaining]
     train_labels = train_labels[0:remaining]
 
@@ -184,14 +187,16 @@ def create_model(train_percentage, should_set_weights):
     # model.save_weights(save_model_filename)
     return ModelWrapper(accuracy, input_centroids)
 
-test_sizes = [0.2, 0.4, 0.6, 0.8, 1.0]
+# The different increments in the amount of training data used for BP with the network.
+training_sizes = [0.2, 0.4, 0.6, 0.8, 1.0]
 
+# Run the experiment obtaining results.
 def run_experiment():
     base_model = create_model(1.0, [False] * 5)
     all_models = [base_model]
 
-    for test_size in test_sizes:
-        model = create_model(test_size, [True] * 5)
+    for training_size in training_sizes:
+        model = create_model(training_size, [True] * 5)
         all_models.append(model)
 
     accuracies = [model.accuracy for model in all_models]
@@ -200,6 +205,7 @@ def run_experiment():
         pickle.dump(accuracies, f)
 
 
+# Compare results of the performed experiment.
 def load_experiment():
     with open('data/credentials.txt') as f:
         creds = f.readlines()
