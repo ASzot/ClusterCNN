@@ -17,6 +17,10 @@ from keras.optimizers import SGD
 from keras.utils import np_utils
 import numpy as np
 import pickle
+import plotly.plotly as py
+from plotly.tools import FigureFactory as FF
+import plotly.tools as tls
+from helpers.mathhelper import angle_between
 
 def add_convlayer(model, nkern, subsample, filter_size, input_shape=None, weights=None):
 
@@ -32,7 +36,6 @@ def add_convlayer(model, nkern, subsample, filter_size, input_shape=None, weight
         bias = params[1]
 
         convLayer.set_weights([weights, bias])
-
 
     model.add(Activation('relu'))
     maxPoolingOut = MaxPooling2D(pool_size=(2,2), strides=(2,2))
@@ -171,17 +174,79 @@ def create_model(test_size, shouldSetWeights):
     return ModelWrapper(accuracy, inputCentroids)
 
 
+test_sizes = []
+test_size = 0.90
+while test_size > 0.3:
+    test_sizes.append(test_size)
+    test_size -= 0.1
+
 def run_experiment():
     base_model = create_model(0.3, [False] * 5)
-    test_size = 0.95
     all_models = [base_model]
-    while test_size > 0.3:
+
+    for test_size in test_sizes:
         model = create_model(test_size, [True] * 5)
         all_models.append(model)
-        test_size -= 0.05
 
     with open('data/models.h5', 'wb') as f:
-        pickle.dump(all_models)
+        pickle.dump(all_models, f)
+
+def load_experiment():
+    with open('data/credentials.txt') as f:
+        creds = f.readlines()
+
+    tls.set_credentials_file(username=creds[0], api_key=creds[1])
+    with open('data/models.h5', 'rb') as f:
+        models = pickle.load(f)
+
+    header_mag_row = ['Data %', 'Accuracy']
+    for i in range(len(models[1].centroids[0])):
+        header_mag_row.append('Centroid %i Mag' % (i))
+
+    header_angle_row = ['Data %', 'Accuracy']
+    for i in range(len(models[1].centroids[0])):
+        header_angle_row.append('Centroid %i Angle' % (i))
+
+    mag_rows = []
+    angle_rows = []
+
+    # Create a unit vector along the first dimension axis.
+    comparison_vec = np.zeros(25)
+    comparison_vec[0] = 1
+
+    for i, model in enumerate(models):
+        if i == 0:
+            data_size_str = 'NA'
+        else:
+            data_size_str = '%.2f%%' % (test_sizes[i - 1] * 100.)
+
+        mag_row = [data_size_str, '%.2f%%' % (model.accuracy * 100.)]
+        angle_row = [data_size_str, '%.2f%%' % (model.accuracy * 100.)]
+
+        if not model.centroids[0] is None:
+            for centroid in model.centroids[0]:
+                centroid = centroid.flatten()
+                # Get the maginitude of the centroid.
+                centroid_mag = np.linalg.norm(centroid)
+                mag_row.append('%.5f' % (centroid_mag))
+
+                angle = angle_between(centroid / centroid_mag, comparison_vec)
+                angle_row.append(angle)
+
+        mag_rows.append(mag_row)
+        angle_rows.append(angle_row)
+
+    mag_data_matrix = [header_mag_row]
+    mag_data_matrix.extend(mag_rows)
+
+    angle_data_matrix = [header_angle_row]
+    angle_data_matrix.extend(angle_rows)
+
+    table = FF.create_table(mag_data_matrix)
+    py.iplot(table, filename='CentroidMagnitudeComparison')
+
+    table2 = FF.create_table(angle_data_matrix)
+    py.iplot(table2, filename='CentroidAngleComparison')
 
 
-run_experiment()
+load_experiment()
