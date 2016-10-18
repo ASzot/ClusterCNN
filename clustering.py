@@ -60,7 +60,7 @@ def load_centroids(filename):
         centroids = pickle.load(f)
         return centroids
 
-def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape, k, convolute):
+def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape, k, convolute, const_fact):
     print '- Building centroids'
 
     if convolute:
@@ -79,20 +79,24 @@ def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape
     # mod_batch_size = (len(clusterVecs) // len(trainSetX)) * batch_size
 
     # All vectors must be normalized for cosine distance.
-    print 'Normalizing vecotrs'
+    print 'Normalizing vectors'
     clusterVecs = preprocessing.normalize(clusterVecs, norm='l2')
 
     print 'Beginning k - menas'
     centroids = kmeans(clusterVecs, k, batch_size)
+
+    # Apply normalization process to the centroids.
+    centroids = np.array([centroid / (np.linalg.norm(centroid) * const_fact) for centroid in centroids])
+
     if convolute:
         # Expand the output.
         sp = centroids.shape
-        return centroids.reshape(sp[0], input_shape[0], filter_shape[0], filter_shape[1])
+        centroids = centroids.reshape(sp[0], input_shape[0], filter_shape[0], filter_shape[1])
     else:
         return centroids
 
 
-def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute=True):
+def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_shape, stride, filter_shape, k, const_fact, convolute=True):
     if not forceCreate:
         try:
             centroids = load_centroids(filename)
@@ -100,7 +104,7 @@ def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_
             forceCreate = True
 
     if forceCreate:
-        centroids = construct_centroids(batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute)
+        centroids = construct_centroids(batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute, const_fact)
         save_centroids(centroids, filename)
 
     return centroids
