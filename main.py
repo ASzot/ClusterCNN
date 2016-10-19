@@ -100,7 +100,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
     test_labels = np_utils.to_categorical(test_labels, 10)
 
     # Only use a given amount of the training data.
-    train_data = train_data[0:remaining]
+    scaled_train_data = train_data[0:remaining]
     train_labels = train_labels[0:remaining]
 
     print 'Running for %.2f%% test size' % (train_percentage * 100.)
@@ -111,7 +111,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
     filter_size=(5,5)
     batch_size = 128
     nkerns = (6, 16)
-    force_create = True
+    force_create = False
 
     input_centroids = [None] * 5
     layer_out = [None] * 4
@@ -128,8 +128,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
 
     if should_set_weights[1]:
         print 'Setting conv layer 1 weights'
-        if len(train_data) > 0:
-            layer_out[0] = convout0_f([train_data])[0]
+        layer_out[0] = convout0_f([train_data])[0]
         input_shape = (nkerns[0], 14, 14)
         input_centroids[1] = load_or_create_centroids(force_create, 'data/centroids/centroids1.h5',
                                 batch_size, layer_out[0], input_shape, subsample, filter_size, nkerns[1], const_fact)
@@ -141,8 +140,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
 
     if should_set_weights[2]:
         print 'Setting fc layer 0 weights'
-        if len(train_data) > 0:
-            layer_out[1] = convout1_f([train_data])[0]
+        layer_out[1] = convout1_f([train_data])[0]
         input_shape = (nkerns[1], 7, 7)
         input_centroids[2] = load_or_create_centroids(force_create, 'data/centroids/centroids2.h5',
                                 batch_size, layer_out[1], input_shape, subsample,
@@ -154,8 +152,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
 
     if should_set_weights[3]:
         print 'Setting fc layer 1 weights'
-        if len(train_data) > 0:
-            layer_out[2] = fc0_f([train_data])[0]
+        layer_out[2] = fc0_f([train_data])[0]
         input_shape = (120,)
         input_centroids[3] = load_or_create_centroids(force_create, 'data/centroids/centroids3.h5',
                                     batch_size, layer_out[2], input_shape, subsample,
@@ -167,8 +164,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
 
     if should_set_weights[4]:
         print 'Setting classifier weights'
-        if len(train_data) > 0:
-            layer_out[3] = fc1_f([train_data])[0]
+        layer_out[3] = fc1_f([train_data])[0]
         input_shape=(84,)
         input_centroids[4] = load_or_create_centroids(force_create, 'data/centroids/centroids4.h5',
                                     batch_size, layer_out[3], input_shape, subsample,
@@ -189,8 +185,8 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
     opt = SGD(lr = 0.01)
     model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
-    if len(train_data) > 0:
-        model.fit(train_data, train_labels, batch_size=128, nb_epoch=20, verbose=1)
+    if len(scaled_train_data) > 0:
+        model.fit(scaled_train_data, train_labels, batch_size=128, nb_epoch=20, verbose=1)
 
     (loss, accuracy) = model.evaluate(test_data, test_labels, batch_size=128, verbose=1)
     print ''
@@ -199,83 +195,6 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
     # print 'Saving'
     # model.save_weights(save_model_filename)
     return ModelWrapper(accuracy, input_centroids, model)
-
-# The different increments in the amount of training data used for BP with the network.
-training_sizes = [0.2, 0.4, 0.6, 0.8, 1.0]
-
-# Run the experiment obtaining results.
-def run_experiment():
-    base_model = create_model(1.0, [False] * 5)
-    all_models = [base_model]
-
-    for training_size in training_sizes:
-        model = create_model(training_size, [True] * 5)
-        all_models.append(model)
-
-    accuracies = [model.accuracy for model in all_models]
-
-    with open('data/models.h5', 'wb') as f:
-        pickle.dump(accuracies, f)
-
-
-# Compare results of the performed experiment.
-def load_experiment():
-    with open('data/credentials.txt') as f:
-        creds = f.readlines()
-
-    tls.set_credentials_file(username=creds[0].rstrip(), api_key=creds[1].rstrip())
-    with open('data/models.h5', 'rb') as f:
-        models = pickle.load(f)
-
-    header_mag_row = ['Data %', 'Accuracy']
-    for i in range(len(models[1].centroids[0])):
-        header_mag_row.append('Centroid %i Mag' % (i))
-
-    header_angle_row = ['Data %', 'Accuracy']
-    for i in range(len(models[1].centroids[0])):
-        header_angle_row.append('Centroid %i Angle' % (i))
-
-    mag_rows = []
-    angle_rows = []
-
-    # Create a unit vector along the first dimension axis.
-    comparison_vec = np.zeros(25)
-    comparison_vec[0] = 1
-
-    for i, model in enumerate(models):
-        if i == 0:
-            data_size_str = 'NA'
-        else:
-            data_size_str = '%.2f%%' % ((1. - test_sizes[i - 1]) * 100.)
-
-        mag_row = [data_size_str, '%.2f%%' % (model.accuracy * 100.)]
-        angle_row = [data_size_str, '%.2f%%' % (model.accuracy * 100.)]
-
-        if not model.centroids[0] is None:
-            for centroid in model.centroids[0]:
-                centroid = centroid.flatten()
-                # Get the maginitude of the centroid.
-                centroid_mag = np.linalg.norm(centroid)
-                mag_row.append('%.5f' % (centroid_mag))
-
-                angle = angle_between(centroid / centroid_mag, comparison_vec)
-                angle_row.append(angle)
-
-        mag_rows.append(mag_row)
-        angle_rows.append(angle_row)
-
-    mag_data_matrix = [header_mag_row]
-    mag_data_matrix.extend(mag_rows)
-
-    angle_data_matrix = [header_angle_row]
-    angle_data_matrix.extend(angle_rows)
-
-    table = FF.create_table(mag_data_matrix)
-    py.iplot(table, filename='CentroidMagnitudeComparison')
-
-    table2 = FF.create_table(angle_data_matrix)
-    py.iplot(table2, filename='CentroidAngleComparison')
-
 
 def get_all_mags(anchor_vecs):
     mags = []
@@ -294,7 +213,7 @@ def get_all_angles(anchor_vecs):
     angles = []
     for anchor_vec in anchor_vecs:
         sub_mags = []
-        # Create a unit vector in the the first dimension.
+        # Create a unit vector in the the first dimension.]:
         dim = np.array(anchor_vec).shape[1]
         compare_vec = np.zeros(dim)
         compare_vec[0] = 1.
@@ -328,10 +247,6 @@ def print_scalar_data(data):
         print ''
         print ''
 
-def print_accuracies(data):
-    for model_data in data:
-        print '%s: %.5f%%' % (model_data[0], model_data[1])
-        print '----------------'
 
 
 def create_compare_models_mags():
@@ -358,29 +273,29 @@ def create_compare_models_angles():
 
     return [['Base Angles', base_model.accuracy, base_angles], ['K-means Angles', kmeans_model.accuracy, kmeans_angles]]
 
-def create_const_fact_models():
-    train_factor = 0.4
-    base_model = create_model(train_factor, [False] * 5)
-    base_anchor_vecs = get_anchor_vectors(base_model)
 
-    ret_val = [['Base', base_model.accuracy, base_anchor_vecs]]
+def test_train_data(const_fact):
+    train_sizes = np.arange(0, 1.1, 0.1)
 
-    const_facts = [1., 5., 10., 50., 100., 1000., 10000.]
+    train_size_models = []
+    for train_size in train_sizes:
+        kmeans_model = create_model(train_size, [True] * 5, const_fact)
+        reg_model = create_model(train_size, [False] * 5, const_fact)
 
-    for const_fact in const_facts:
-        model = create_model(train_factor, [True] * 5, const_fact)
-        model_anchor_vecs = get_anchor_vectors(model)
-        ret_val.append(['CF of %i' % (int(const_fact)), model.accuracy, model_anchor_vecs])
+        train_size_models.append([train_size, reg_model.accuracy, kmeans_model.accuracy])
 
-    return ret_val
+        del kmeans_model
+        del reg_model
 
+    return train_size_models
 
-load_runner = LoadRunner(create_const_fact_models)
-# angle_data = load_runner.run_or_load('data/anchor_vecs_angles.h5', force_create=True)
-# mag_data = load_runner.run_or_load('data/anchor_vecs_mag_reg.h5', force_create=False)
-anchor_data = load_runner.run_or_load('data/anchor_vecs_cf.h5', force_create=True)
+fact_values = [-2, 10, -10]
 
-print_accuracies(anchor_data)
+for fact_value in fact_values:
+    load_runner = LoadRunner(test_train_data, fact_value)
 
-# load_experiment()
-# run_experiment()
+    add_str = ''
+    if fact_value < 0.0:
+        add_str = '_neg'
+    accuracy_data = load_runner.run_or_load('data/accuracies/train_accuracies' + add_str + '_' + str(fact_value) + '.h5')
+    del accuracy_data

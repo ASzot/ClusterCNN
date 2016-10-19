@@ -9,8 +9,8 @@ from sklearn.metrics import pairwise
 import sklearn.preprocessing as preprocessing
 from clustering_cosine import cosine_kmeans
 
-def kmeans(inputData, k, batch_size):
-    return cosine_kmeans(inputData, k)
+def kmeans(input_data, k, batch_size):
+    return cosine_kmeans(input_data, k)
 
 
 def get_image_patches(inputImg, inputShape, stride, filterShape):
@@ -26,7 +26,8 @@ def get_image_patches(inputImg, inputShape, stride, filterShape):
     while rowOffset < inputShape[1] - filterShape[0]:
         while colOffset < inputShape[2] - filterShape[1]:
             patch = [filterMat[rowOffset:rowOffset+filterShape[0], colOffset:colOffset+filterShape[1]] for filterMat in inputImg]
-            patches.append(np.array(patch))
+            patch = np.array(patch)
+            patches.append(patch)
             colOffset += stride[1]
         rowOffset += stride[0]
         colOffset = 0
@@ -37,7 +38,8 @@ def build_patch_vecs(dataSetX, inputShape, stride, filterShape):
     patchVecs = []
     total = len(dataSetX)
     for i, dataX in enumerate(dataSetX):
-        if i % (total // 10) == 0:
+        # Print every percent
+        if i % (total // 100) == 0:
             print '%.2f%%' % ((float(i) / float(total)) * 100.)
         patches = get_image_patches(dataX, inputShape, stride, filterShape)
 
@@ -58,11 +60,10 @@ def load_centroids(filename):
     print 'Loading cluster data...'
     with open(filename, 'rb') as f:
         centroids = pickle.load(f)
-        return centroids
+        return np.array(centroids)
 
 def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape, k, convolute, const_fact):
     print '- Building centroids'
-
     if convolute:
         clusterVecs = build_patch_vecs(trainSetX, input_shape, stride, filter_shape)
     else:
@@ -76,24 +77,19 @@ def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape
             input_shape_prod = input_shape_prod * input_shape_dim
         clusterVecs = trainSetX.reshape(sp[0], input_shape_prod)
 
-    # mod_batch_size = (len(clusterVecs) // len(trainSetX)) * batch_size
+    clusterVecs = np.array(clusterVecs)
 
-    # All vectors must be normalized for cosine distance.
-    print 'Normalizing vectors'
+    print 'Normalizing'
     clusterVecs = preprocessing.normalize(clusterVecs, norm='l2')
 
     print 'Beginning k - menas'
     centroids = kmeans(clusterVecs, k, batch_size)
 
-    # Apply normalization process to the centroids.
-    centroids = np.array([centroid / (np.linalg.norm(centroid) * const_fact) for centroid in centroids])
-
     if convolute:
         # Expand the output.
         sp = centroids.shape
         centroids = centroids.reshape(sp[0], input_shape[0], filter_shape[0], filter_shape[1])
-    else:
-        return centroids
+    return centroids
 
 
 def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_shape, stride, filter_shape, k, const_fact, convolute=True):
@@ -106,5 +102,12 @@ def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_
     if forceCreate:
         centroids = construct_centroids(batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute, const_fact)
         save_centroids(centroids, filename)
+
+    # Scale the centroids by some factor.
+    # Apply normalization process to the centroids.
+    if const_fact > 0.0:
+        centroids = np.array([centroid / (const_fact) for centroid in centroids])
+    else:
+        centroids = np.array([centroid / (-const_fact * np.linalg.norm(centroid)) for centroid in centroids])
 
     return centroids
