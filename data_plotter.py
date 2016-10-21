@@ -48,25 +48,28 @@ def plot_accuracies():
         const_fact_str = const_fact_str[:len(const_fact_str) - 3]
         const_fact = int(const_fact_str)
 
+        plot_accuracy(load_path + train_accuracy_file, 'Weight Factor: %i' % const_fact, 'data/figs/graph_%i.jpg' % const_fact)
 
-        with open(load_path + train_accuracy_file) as f:
-            all_train_data = pickle.load(f)
 
-            data_used_increments = [i[0] for i in all_train_data]
-            reg_accuracies = [i[1] for i in all_train_data]
-            kmeans_accuracies = [i[2] for i in all_train_data]
+def plot_accuracy(filename, title, savename):
+    with open(filename) as f:
+        all_train_data = pickle.load(f)
 
-            fig = plt.figure()
-            reg_line = plt.plot(data_used_increments, reg_accuracies)
-            kmeans_line = plt.plot(data_used_increments, kmeans_accuracies)
-            plt.setp(reg_line, color='r', linewidth=2.0)
-            plt.setp(kmeans_line, color='b', linewidth=2.0)
-            fig.suptitle('Weight Factor: %i' % const_fact, fontsize=20)
-            plt.xlabel('Train Data Used', fontsize=18)
-            plt.ylabel('Accuracy', fontsize=16)
-            # plt.axis([0.0, 0.25, 0.5, 0.75, 1.0])
+        data_used_increments = [i[0] for i in all_train_data]
+        reg_accuracies = [i[1] for i in all_train_data]
+        kmeans_accuracies = [i[2] for i in all_train_data]
 
-            fig.savefig('data/figs/graph_%i.jpg' % const_fact)
+        fig = plt.figure()
+        reg_line = plt.plot(data_used_increments, reg_accuracies)
+        kmeans_line = plt.plot(data_used_increments, kmeans_accuracies)
+        plt.setp(reg_line, color='r', linewidth=2.0)
+        plt.setp(kmeans_line, color='b', linewidth=2.0)
+        fig.suptitle(title, fontsize=20)
+        plt.xlabel('Train Data Used', fontsize=18)
+        plt.ylabel('Accuracy', fontsize=16)
+        # plt.axis([0.0, 0.25, 0.5, 0.75, 1.0])
+
+        fig.savefig(savename)
 
 def plot_anchor_vec_data():
     load_runner = LoadRunner(None)
@@ -77,4 +80,5 @@ def plot_anchor_vec_data():
     plot_scalar_data(angle_data, 'Angle Data')
     plot_scalar_data(mag_data, 'Magnitude Data')
 
-plot_anchor_vec_data()
+plot_accuracy('data/accuracies/normalized_train_accuracies.h5', 'Batch Size=128', 'data/figs/fig0.png')
+plot_accuracy('data/accuracies/small_batch_normalized_train_accuracies.h5', 'Batch Size=1', 'data/figs/fig1.png')

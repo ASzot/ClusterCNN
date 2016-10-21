@@ -89,7 +89,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
     input_shape = (1, 28, 28)
     subsample=(1,1)
     filter_size=(5,5)
-    batch_size = 128
+    batch_size = 5
     nkerns = (6, 16)
     force_create = False
 
@@ -168,9 +168,9 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
     if len(scaled_train_data) > 0:
         # Normalize the anchor vectors as the model weights are updated.
         anchor_vec_normalizer = AnchorVecNormalizer(filter_size, nkerns)
-        model.fit(scaled_train_data, train_labels, batch_size=128, nb_epoch=20, verbose=1, callbacks=[anchor_vec_normalizer])
+        model.fit(scaled_train_data, train_labels, batch_size=batch_size, nb_epoch=20, verbose=0, callbacks=[anchor_vec_normalizer])
 
-    (loss, accuracy) = model.evaluate(test_data, test_labels, batch_size=128, verbose=1)
+    (loss, accuracy) = model.evaluate(test_data, test_labels, batch_size=batch_size, verbose=1)
     print ''
     print 'Accuracy %.9f%%' % (accuracy * 100.)
 
@@ -260,7 +260,7 @@ def test_train_data(const_fact):
     train_sizes = np.arange(0, 1.1, 0.1)
 
     train_size_models = []
-    for train_size in train_sizes:
+    for train_size in reversed(train_sizes):
         kmeans_model = create_model(train_size, [True] * 5, const_fact)
         reg_model = create_model(train_size, [False] * 5, const_fact)
 
@@ -271,5 +271,5 @@ def test_train_data(const_fact):
 
     return train_size_models
 
-load_runner = LoadRunner(test_train_data, 0.0)
-load_runner.run_or_load('data/accuracies/normalized_train_accuracies.h5')
+kmeans_model = create_model(1.0, [True] * 5, 0.0)
+print kmeans_model.accuracy
