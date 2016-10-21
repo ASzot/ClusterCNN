@@ -21,7 +21,9 @@ import plotly.plotly as py
 from plotly.tools import FigureFactory as FF
 import plotly.tools as tls
 from helpers.mathhelper import angle_between
+from helpers.mathhelper import get_anchor_vectors
 from load_runner import LoadRunner
+from anchor_normalizer import AnchorVecNormalizer
 
 def add_convlayer(model, nkern, subsample, filter_size, input_shape=None, weights=None):
     if input_shape is not None:
@@ -57,28 +59,6 @@ def add_fclayer(model, output_dim, weights=None):
     model.add(fcOutLayer)
     fcOut_f = K.function([model.layers[0].input], [fcOutLayer.output])
     return fcOut_f
-
-# A helper function to get the anchor vectors of a layer.
-def get_anchor_vectors(model0):
-    anchor_vectors = []
-
-    for layer in model0.model.layers:
-        params = layer.get_weights()
-        if len(params) > 0:
-            weights = params[0]
-            if len(weights.shape) > 2:
-                # This is a convolution layer
-                add_anchor_vectors = []
-                for conv_filter in weights:
-                    conv_filter = conv_filter.flatten()
-                    add_anchor_vectors.append(conv_filter)
-                anchor_vectors.append(add_anchor_vectors)
-            else:
-                sp = weights.shape
-                weights = weights.reshape(sp[1], sp[0])
-                anchor_vectors.append(weights)
-
-    return anchor_vectors
 
 
 def fetch_data(test_size):
@@ -186,7 +166,9 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
     model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
     if len(scaled_train_data) > 0:
-        model.fit(scaled_train_data, train_labels, batch_size=128, nb_epoch=20, verbose=1)
+        # Normalize the anchor vectors as the model weights are updated. 
+        anchor_vec_normalizer = AnchorVecNormalizer(filter_size, nkerns)
+        model.fit(scaled_train_data, train_labels, batch_size=128, nb_epoch=20, verbose=1, callbacks=[anchor_vec_normalizer])
 
     (loss, accuracy) = model.evaluate(test_data, test_labels, batch_size=128, verbose=1)
     print ''
