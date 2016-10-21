@@ -105,9 +105,10 @@ def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_
 
     # Scale the centroids by some factor.
     # Apply normalization process to the centroids.
-    if const_fact > 0.0:
-        centroids = np.array([centroid / (const_fact) for centroid in centroids])
-    else:
-        centroids = np.array([centroid / (-const_fact * np.linalg.norm(centroid)) for centroid in centroids])
+    if const_fact != 0.0:
+        if const_fact > 0.0:
+            centroids = np.array([centroid / (const_fact) for centroid in centroids])
+        else:
+            centroids = np.array([centroid / (-const_fact * np.linalg.norm(centroid)) for centroid in centroids])
 
     return centroids

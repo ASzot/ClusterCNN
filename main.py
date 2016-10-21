@@ -166,7 +166,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
     model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
     if len(scaled_train_data) > 0:
-        # Normalize the anchor vectors as the model weights are updated. 
+        # Normalize the anchor vectors as the model weights are updated.
         anchor_vec_normalizer = AnchorVecNormalizer(filter_size, nkerns)
         model.fit(scaled_train_data, train_labels, batch_size=128, nb_epoch=20, verbose=1, callbacks=[anchor_vec_normalizer])
 
@@ -271,13 +271,5 @@ def test_train_data(const_fact):
 
     return train_size_models
 
-fact_values = [-2, 10, -10]
-
-for fact_value in fact_values:
-    load_runner = LoadRunner(test_train_data, fact_value)
-
-    add_str = ''
-    if fact_value < 0.0:
-        add_str = '_neg'
-    accuracy_data = load_runner.run_or_load('data/accuracies/train_accuracies' + add_str + '_' + str(fact_value) + '.h5')
-    del accuracy_data
+load_runner = LoadRunner(test_train_data, 0.0)
+load_runner.run_or_load('data/accuracies/normalized_train_accuracies.h5')
