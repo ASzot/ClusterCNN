@@ -271,5 +271,27 @@ def test_train_data(const_fact):
 
     return train_size_models
 
-kmeans_model = create_model(1.0, [True] * 5, 0.0)
-print kmeans_model.accuracy
+model = Sequential()
+conv_layer = Convolution2D(6, 5, 5, border_mode='same', subsample=(1,1), input_shape=(1, 28, 28), init='glorot_normal')
+model.add(conv_layer)
+
+weights = conv_layer.get_weights()[0]
+
+# print weights[0]
+
+# Convert to anchor vectors.
+anchor_vecs = [weight.flatten() for weight in weights]
+
+angles = []
+compare_vec = np.zeros(25)
+compare_vec[0] = 1.
+
+print angle_between(np.array([0,1,0]), np.array([1,0,0])) / (np.pi) * 180.
+
+#
+#
+# for anchor_vec in anchor_vecs:
+#     norm_av = anchor_vec / np.linalg.norm(anchor_vec)
+#     angles.append(angle_between(norm_av, compare_vec))
+#
+# print angles
