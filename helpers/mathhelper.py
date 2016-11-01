@@ -41,6 +41,21 @@ def get_anchor_vectors(model0):
 
     return anchor_vectors
 
+
+def get_anchor_vector_angles(layer_anchor_vecs):
+    angles = []
+    for anchor_vecs in layer_anchor_vecs:
+        layer_angles = []
+        for anchor_vec in anchor_vecs:
+            compare_vec = np.zeros(len(anchor_vec))
+            compare_vec[0] = 1.
+            angle = angle_between(compare_vec, anchor_vec)
+            layer_angles.append(angle)
+        angles.append(layer_angles)
+
+    return angles
+
+
 def set_anchor_vectors(model, anchor_vectors, nkerns, filter_size):
     sps = [anchor_vector.shape for anchor_vector in anchor_vectors]
 

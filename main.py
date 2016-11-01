@@ -20,8 +20,7 @@ import pickle
 import plotly.plotly as py
 from plotly.tools import FigureFactory as FF
 import plotly.tools as tls
-from helpers.mathhelper import angle_between
-from helpers.mathhelper import get_anchor_vectors
+from helpers.mathhelper import *
 from load_runner import LoadRunner
 from anchor_normalizer import AnchorVecNormalizer
 
@@ -69,7 +68,7 @@ def fetch_data(test_size):
     return train_test_split(data / 255.0, dataset.target.astype('int'), test_size=test_size)
 
 
-def create_model(train_percentage, should_set_weights, const_fact=10.):
+def create_model(train_percentage, should_set_weights, target_stds=[None] * 5):
     # Break the data up into test and training set.
     # This will be set at 0.3 is test and 0.7 is training.
     (train_data, test_data, train_labels, test_labels) = fetch_data(0.3)
@@ -91,7 +90,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
     filter_size=(5,5)
     batch_size = 5
     nkerns = (6, 16)
-    force_create = False
+    force_create = True
 
     input_centroids = [None] * 5
     layer_out = [None] * 4
@@ -102,7 +101,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
         print 'Setting conv layer 0 weights'
         input_centroids[0] = load_or_create_centroids(force_create, 'data/centroids/centroids0.h5',
                                 batch_size, train_data, input_shape, subsample,
-                                filter_size, nkerns[0], const_fact)
+                                filter_size, nkerns[0], target_stds[0])
 
     convout0_f = add_convlayer(model, nkerns[0], subsample, filter_size, input_shape=input_shape, weights=input_centroids[0])
 
@@ -111,7 +110,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
         layer_out[0] = convout0_f([train_data])[0]
         input_shape = (nkerns[0], 14, 14)
         input_centroids[1] = load_or_create_centroids(force_create, 'data/centroids/centroids1.h5',
-                                batch_size, layer_out[0], input_shape, subsample, filter_size, nkerns[1], const_fact)
+                                batch_size, layer_out[0], input_shape, subsample, filter_size, nkerns[1], target_stds[1])
 
     convout1_f = add_convlayer(model, nkerns[1], subsample, filter_size, input_shape=input_shape, weights=input_centroids[1])
 
@@ -124,7 +123,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
         input_shape = (nkerns[1], 7, 7)
         input_centroids[2] = load_or_create_centroids(force_create, 'data/centroids/centroids2.h5',
                                 batch_size, layer_out[1], input_shape, subsample,
-                                filter_size, 120, const_fact, convolute=False)
+                                filter_size, 120, target_stds[2], convolute=False)
         sp = input_centroids[2].shape
         input_centroids[2] = input_centroids[2].reshape(sp[1], sp[0])
 
@@ -136,7 +135,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
         input_shape = (120,)
         input_centroids[3] = load_or_create_centroids(force_create, 'data/centroids/centroids3.h5',
                                     batch_size, layer_out[2], input_shape, subsample,
-                                    filter_size, 84, const_fact, convolute=False)
+                                    filter_size, 84, target_stds[3], convolute=False)
         sp = input_centroids[3].shape
         input_centroids[3] = input_centroids[3].reshape(sp[1], sp[0])
 
@@ -148,7 +147,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
         input_shape=(84,)
         input_centroids[4] = load_or_create_centroids(force_create, 'data/centroids/centroids4.h5',
                                     batch_size, layer_out[3], input_shape, subsample,
-                                    filter_size, 10, const_fact, convolute=False)
+                                    filter_size, 10, target_stds[4], convolute=False)
         sp = input_centroids[4].shape
         input_centroids[4] = input_centroids[4].reshape(sp[1], sp[0])
 
@@ -168,7 +167,7 @@ def create_model(train_percentage, should_set_weights, const_fact=10.):
     if len(scaled_train_data) > 0:
         # Normalize the anchor vectors as the model weights are updated.
         anchor_vec_normalizer = AnchorVecNormalizer(filter_size, nkerns)
-        model.fit(scaled_train_data, train_labels, batch_size=batch_size, nb_epoch=20, verbose=0, callbacks=[anchor_vec_normalizer])
+        model.fit(scaled_train_data, train_labels, batch_size=batch_size, nb_epoch=20, verbose=1, callbacks=[anchor_vec_normalizer])
 
     (loss, accuracy) = model.evaluate(test_data, test_labels, batch_size=batch_size, verbose=1)
     print ''
@@ -261,8 +260,8 @@ def test_train_data(const_fact):
 
     train_size_models = []
     for train_size in reversed(train_sizes):
-        kmeans_model = create_model(train_size, [True] * 5, const_fact)
         reg_model = create_model(train_size, [False] * 5, const_fact)
+        kmeans_model = create_model(train_size, [True] * 5, const_fact)
 
         train_size_models.append([train_size, reg_model.accuracy, kmeans_model.accuracy])
 
@@ -271,27 +270,35 @@ def test_train_data(const_fact):
 
     return train_size_models
 
-model = Sequential()
-conv_layer = Convolution2D(6, 5, 5, border_mode='same', subsample=(1,1), input_shape=(1, 28, 28), init='glorot_normal')
-model.add(conv_layer)
+def get_model_angle_std(model):
+    layer_anchor_vecs = get_anchor_vectors(model)
+    layer_anchor_vec_angles = get_anchor_vector_angles(layer_anchor_vecs)
+    layer_anchor_vec_angle_stds = [np.std(layer_angles) for layer_angles in layer_anchor_vec_angles]
+    return layer_anchor_vec_angle_stds
 
-weights = conv_layer.get_weights()[0]
+def get_model_mag_std(model):
+    layer_anchor_vecs = get_anchor_vectors(model)
 
-# print weights[0]
+    layer_anchor_vec_mags = []
+    for layer_anchor_vec in layer_anchor_vecs:
+        mags = [np.linalg.norm(anchor_vec) for anchor_vec in layer_anchor_vec]
+        layer_anchor_vec_mags.append(np.std(mags))
 
-# Convert to anchor vectors.
-anchor_vecs = [weight.flatten() for weight in weights]
+    return layer_anchor_vec_mags
 
-angles = []
-compare_vec = np.zeros(25)
-compare_vec[0] = 1.
+def get_model_raw_std(model):
+    raw_stds = []
+    for layer in model.model.layers:
+        weights = layer.get_weights()
+        if len(weights) > 0:
+            weights = weights[0]
+            raw_stds.append(np.std(weights))
+    return raw_stds
 
-print angle_between(np.array([0,1,0]), np.array([1,0,0])) / (np.pi) * 180.
 
-#
-#
-# for anchor_vec in anchor_vecs:
-#     norm_av = anchor_vec / np.linalg.norm(anchor_vec)
-#     angles.append(angle_between(norm_av, compare_vec))
-#
-# print angles
+kmeans_model = create_model(0.4, [True] * 5)
+
+
+
+
+# kmeans_model = create_model(train_size, [True] * 5, const_fact)

@@ -8,6 +8,7 @@ from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.metrics import pairwise
 import sklearn.preprocessing as preprocessing
 from clustering_cosine import cosine_kmeans
+import csv
 
 def kmeans(input_data, k, batch_size):
     return cosine_kmeans(input_data, k)
@@ -62,10 +63,18 @@ def load_centroids(filename):
         centroids = pickle.load(f)
         return np.array(centroids)
 
-def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape, k, convolute, const_fact):
+def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape, k, convolute):
     print '- Building centroids'
     if convolute:
+
         clusterVecs = build_patch_vecs(trainSetX, input_shape, stride, filter_shape)
+
+        # Save the cluster vectors.
+        with open('data/kmeansdata/input.csv', 'wb') as f:
+            data_writer = csv.writer(f, delimiter=',')
+            for cluster_vec in clusterVecs:
+                data_writer.write(cluster_vec)
+        raise ValueError()
     else:
         # Flatten the input.
         sp = trainSetX.shape
@@ -92,7 +101,7 @@ def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape
     return centroids
 
 
-def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_shape, stride, filter_shape, k, const_fact, convolute=True):
+def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_shape, stride, filter_shape, k, target_std, convolute=True):
     if not forceCreate:
         try:
             centroids = load_centroids(filename)
@@ -100,15 +109,33 @@ def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_
             forceCreate = True
 
     if forceCreate:
-        centroids = construct_centroids(batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute, const_fact)
+        centroids = construct_centroids(batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute)
         save_centroids(centroids, filename)
 
     # Scale the centroids by some factor.
     # Apply normalization process to the centroids.
-    if const_fact != 0.0:
-        if const_fact > 0.0:
-            centroids = np.array([centroid / (const_fact) for centroid in centroids])
+    if target_std is not None:
+        # Scale the data so that it has the same std.
+        std_method = 'mag'
+        if std_method == 'mag':
+            print 'doing mag scaling'
+            mags = [np.linalg.norm(centroid) for centroid in centroids]
+            current_std = np.std(mags)
+        elif std_method == 'angle':
+            pass
+        elif std_method == 'raw':
+            current_std = np.std(centroids)
         else:
-            centroids = np.array([centroid / (-const_fact * np.linalg.norm(centroid)) for centroid in centroids])
+            raise ValueError()
+
+        std_scaling_fact = target_std / current_std
+        print std_scaling_fact
+
+        # centroids = [centroid / np.linalg.norm(centroid) for centroid in centroids]
+        centroids = [centroid * std_scaling_fact for centroid in centroids]
+
+        # centroids = [centroid * std_scaling_fact for centroid in centroids]
+
+        centroids = np.array(centroids)
 
     return centroids
