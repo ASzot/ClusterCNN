@@ -5,13 +5,31 @@ import warnings
 from sklearn.metrics.pairwise import cosine_distances
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics.pairwise import euclidean_distances
+from sklearn.cluster import MiniBatchKMeans, KMeans
 from sklearn.metrics import pairwise
 import sklearn.preprocessing as preprocessing
 from clustering_cosine import cosine_kmeans
+from scipy.cluster.vq import whiten
 import csv
 
-def kmeans(input_data, k, batch_size):
-    return cosine_kmeans(input_data, k)
+def kmeans(input_data, k, batch_size, metric='euclidean'):
+    if (metric == 'cosine'):
+        print 'Normalizing'
+        clusterVecs = preprocessing.normalize(clusterVecs, norm='l2')
+        return cosine_kmeans(input_data, k)
+    elif metric == 'euclidean':
+        mbk = MiniBatchKMeans(init='k-means++',
+                                n_clusters=k,
+                                batch_size=batch_size,
+                                max_no_improvement=10,
+                                reassignment_ratio=0.01,
+                                verbose=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            mbk.fit(input_data)
+        return mbk.cluster_centers_
+    else:
+        raise NameError()
 
 
 def get_image_patches(inputImg, inputShape, stride, filterShape):
@@ -54,27 +72,50 @@ def build_patch_vecs(dataSetX, inputShape, stride, filterShape):
 def save_centroids(centroids, filename):
     print 'Saving to file...'
     with open(filename, 'wb') as f:
-        pickle.dump(centroids, f)
+        writer = csv.writer(f)
+        for centroid in centroids:
+            writer.writerow(centroid)
 
 
 def load_centroids(filename):
     print 'Loading cluster data...'
+    centroids = []
     with open(filename, 'rb') as f:
-        centroids = pickle.load(f)
-        return np.array(centroids)
+        reader = csv.reader(f)
+        for centroid in reader:
+            centroids.append(centroid)
+    return np.array(centroids)
+
+
+def matlab_construct_cluster_vecs(filename, train_x, input_shape, stride, filter_shape, convolute):
+    print 'Building centroids'
+    if convolute:
+        cluster_vecs = build_patch_vecs(train_x, input_shape, stride, filter_shape)
+    else:
+        input_shape_prod = 1.0
+        for input_shape_dim in input_shape:
+            input_shape_prod = input_shape_prod * input_shape_dim
+        sp = train_x.shape
+        print input_shape
+        print sp
+        cluster_vecs = train_x.reshape(sp[0], int(input_shape_prod))
+
+    cluster_vecs = np.array(cluster_vecs)
+
+    # Save the cluster vectors.
+    filename_parts = filename.split('.')
+    filename = filename_parts[0] + '_cluster_vecs' + '.' + filename_parts[1]
+    with open(filename, 'wb') as f:
+        data_writer = csv.writer(f, delimiter=',')
+        for cluster_vec in cluster_vecs:
+            data_writer.writerow(cluster_vec)
+    return True
+
 
 def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape, k, convolute):
     print '- Building centroids'
     if convolute:
-
         clusterVecs = build_patch_vecs(trainSetX, input_shape, stride, filter_shape)
-
-        # Save the cluster vectors.
-        with open('data/kmeansdata/input.csv', 'wb') as f:
-            data_writer = csv.writer(f, delimiter=',')
-            for cluster_vec in clusterVecs:
-                data_writer.write(cluster_vec)
-        raise ValueError()
     else:
         # Flatten the input.
         sp = trainSetX.shape
@@ -84,24 +125,36 @@ def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape
         input_shape_prod = 1.0
         for input_shape_dim in input_shape:
             input_shape_prod = input_shape_prod * input_shape_dim
-        clusterVecs = trainSetX.reshape(sp[0], input_shape_prod)
+        clusterVecs = trainSetX.reshape(sp[0], int(input_shape_prod))
 
     clusterVecs = np.array(clusterVecs)
 
-    print 'Normalizing'
-    clusterVecs = preprocessing.normalize(clusterVecs, norm='l2')
-
-    print 'Beginning k - menas'
+    print 'Beginning k - means'
     centroids = kmeans(clusterVecs, k, batch_size)
 
-    if convolute:
-        # Expand the output.
-        sp = centroids.shape
-        centroids = centroids.reshape(sp[0], input_shape[0], filter_shape[0], filter_shape[1])
     return centroids
 
 
-def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_shape, stride, filter_shape, k, target_std, convolute=True):
+def matlab_load_centroids(filename, input_shape):
+    centroids = []
+    with open(filename, 'r') as f:
+        print 'Loading centroids from file'
+        data_reader = csv.reader(f, delimiter=',')
+        for row in data_reader:
+            centroids.append(row)
+    return np.array(centroids)
+
+
+def matlab_load_or_create_centroids(filename, train_x, input_shape, stride, filter_shape, convolute=True):
+    try:
+        centroids = matlab_load_centroids(filename, input_shape)
+    except IOError:
+        matlab_construct_cluster_vecs(filename, train_x, input_shape, stride, filter_shape, convolute)
+        raise ValueError('Load the data in matlab and create cluster vector file.')
+    return centroids
+
+
+def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute=True):
     if not forceCreate:
         try:
             centroids = load_centroids(filename)
@@ -110,32 +163,9 @@ def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_
 
     if forceCreate:
         centroids = construct_centroids(batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute)
+        # Whiten the data.
+        centroids = whiten(centroids)
+        centroids = np.mean(centroids)
         save_centroids(centroids, filename)
-
-    # Scale the centroids by some factor.
-    # Apply normalization process to the centroids.
-    if target_std is not None:
-        # Scale the data so that it has the same std.
-        std_method = 'mag'
-        if std_method == 'mag':
-            print 'doing mag scaling'
-            mags = [np.linalg.norm(centroid) for centroid in centroids]
-            current_std = np.std(mags)
-        elif std_method == 'angle':
-            pass
-        elif std_method == 'raw':
-            current_std = np.std(centroids)
-        else:
-            raise ValueError()
-
-        std_scaling_fact = target_std / current_std
-        print std_scaling_fact
-
-        # centroids = [centroid / np.linalg.norm(centroid) for centroid in centroids]
-        centroids = [centroid * std_scaling_fact for centroid in centroids]
-
-        # centroids = [centroid * std_scaling_fact for centroid in centroids]
-
-        centroids = np.array(centroids)
 
     return centroids
