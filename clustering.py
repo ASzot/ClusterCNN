@@ -23,7 +23,7 @@ def kmeans(input_data, k, batch_size, metric='euclidean'):
                                 batch_size=batch_size,
                                 max_no_improvement=10,
                                 reassignment_ratio=0.01,
-                                verbose=True)
+                                verbose=False)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             mbk.fit(input_data)
@@ -57,9 +57,6 @@ def build_patch_vecs(dataSetX, inputShape, stride, filterShape):
     patchVecs = []
     total = len(dataSetX)
     for i, dataX in enumerate(dataSetX):
-        # Print every percent
-        if i % (total // 100) == 0:
-            print '%.2f%%' % ((float(i) / float(total)) * 100.)
         patches = get_image_patches(dataX, inputShape, stride, filterShape)
 
         # Flatten each of the vectors.
@@ -87,74 +84,47 @@ def load_centroids(filename):
     return np.array(centroids)
 
 
-def matlab_construct_cluster_vecs(filename, train_x, input_shape, stride, filter_shape, convolute):
-    print 'Building centroids'
-    if convolute:
-        cluster_vecs = build_patch_vecs(train_x, input_shape, stride, filter_shape)
-    else:
-        input_shape_prod = 1.0
-        for input_shape_dim in input_shape:
-            input_shape_prod = input_shape_prod * input_shape_dim
-        sp = train_x.shape
-        print input_shape
-        print sp
-        cluster_vecs = train_x.reshape(sp[0], int(input_shape_prod))
-
-    cluster_vecs = np.array(cluster_vecs)
-
-    # Save the cluster vectors.
-    filename_parts = filename.split('.')
-    filename = filename_parts[0] + '_cluster_vecs' + '.' + filename_parts[1]
-    with open(filename, 'wb') as f:
-        data_writer = csv.writer(f, delimiter=',')
-        for cluster_vec in cluster_vecs:
-            data_writer.writerow(cluster_vec)
-    return True
-
-
-def construct_centroids(batch_size, trainSetX, input_shape, stride, filter_shape, k, convolute):
+def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stride, filter_shape, k, convolute):
     print '- Building centroids'
     if convolute:
-        clusterVecs = build_patch_vecs(trainSetX, input_shape, stride, filter_shape)
+        cluster_vecs = build_patch_vecs(train_set_x, input_shape, stride, filter_shape)
     else:
         # Flatten the input.
-        sp = trainSetX.shape
+        sp = train_set_x.shape
 
         # Not garunteed to be 3 dimensions as the input will be flattened.
         # This is different than performing the convolution where it has to be 3 dimensional.
         input_shape_prod = 1.0
         for input_shape_dim in input_shape:
             input_shape_prod = input_shape_prod * input_shape_dim
-        clusterVecs = trainSetX.reshape(sp[0], int(input_shape_prod))
+        cluster_vecs = train_set_x.reshape(sp[0], int(input_shape_prod))
 
-    clusterVecs = np.array(clusterVecs)
+    cluster_vecs = np.array(cluster_vecs)
+
+    # print 'Whitening data.'
+    cluster_vecs = whiten(cluster_vecs)
+
+    cluster_vec_mean = np.mean(cluster_vecs)
+    cluster_vecs = cluster_vecs - cluster_vec_mean
+
+    if raw_save_loc != '':
+        print 'Saving image patches'
+        with open(raw_save_loc, 'wb') as f:
+            csvwriter = csv.writer(f)
+            for cluster_vec in cluster_vecs:
+                csvwriter.writerow(cluster_vec)
 
     print 'Beginning k - means'
-    centroids = kmeans(clusterVecs, k, batch_size)
+    centroids = kmeans(cluster_vecs, k, batch_size)
+
+    # Normalize each of the centroids.
+    for i, centroid in enumerate(centroids):
+        centroids[i] = (centroid / np.linalg.norm(centroid))
 
     return centroids
 
 
-def matlab_load_centroids(filename, input_shape):
-    centroids = []
-    with open(filename, 'r') as f:
-        print 'Loading centroids from file'
-        data_reader = csv.reader(f, delimiter=',')
-        for row in data_reader:
-            centroids.append(row)
-    return np.array(centroids)
-
-
-def matlab_load_or_create_centroids(filename, train_x, input_shape, stride, filter_shape, convolute=True):
-    try:
-        centroids = matlab_load_centroids(filename, input_shape)
-    except IOError:
-        matlab_construct_cluster_vecs(filename, train_x, input_shape, stride, filter_shape, convolute)
-        raise ValueError('Load the data in matlab and create cluster vector file.')
-    return centroids
-
-
-def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute=True):
+def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute=True, scale_factor = 1.0, raw_save_loc=''):
     if not forceCreate:
         try:
             centroids = load_centroids(filename)
@@ -162,10 +132,10 @@ def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_
             forceCreate = True
 
     if forceCreate:
-        centroids = construct_centroids(batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute)
+        centroids = construct_centroids(raw_save_loc, batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute)
         # Whiten the data.
-        centroids = whiten(centroids)
-        centroids = np.mean(centroids)
+        # centroids = whiten(centroids)
+
         save_centroids(centroids, filename)
 
     return centroids

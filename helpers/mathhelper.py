@@ -1,40 +1,6 @@
 import numpy as np
 
 
-def svd_whiten(X):
-
-    U, s, Vt = np.linalg.svd(X)
-
-    # U and Vt are the singular matrices, and s contains the singular values.
-    # Since the rows of both U and Vt are orthonormal vectors, then U * Vt
-    # will be white
-    X_white = np.dot(U, Vt)
-
-    return X_white
-
-
-def whiten(X,fudge=1E-18):
-   # the matrix X should be observations-by-components
-
-   # get the covariance matrix
-   Xcov = np.dot(X.T,X)
-
-   # eigenvalue decomposition of the covariance matrix
-   d, V = np.linalg.eigh(Xcov)
-
-   # a fudge factor can be used so that eigenvectors associated with
-   # small eigenvalues do not get overamplified.
-   D = np.diag(1. / np.sqrt(d+fudge))
-
-   # whitening matrix
-   W = np.dot(np.dot(V, D), V.T)
-
-   # multiply by the whitening matrix
-   X_white = np.dot(X, W)
-
-   return X_white, W
-
-
 def unit_vector(vector):
     return vector / np.linalg.norm(vector)
 
@@ -43,7 +9,21 @@ def angle_between(v1, v2):
     v2_u = unit_vector(v2)
     return np.arccos(np.clip(np.dot(v1_u, v2_u), -1.0, 1.0))
 
-# A helper function to get the anchor vectors of a layer.
+
+def get_layer_anchor_vectors(layer_data):
+    sp = layer_data.shape
+    if len(sp) > 2:
+        anchor_vecs = []
+        for conv_filter in layer_data:
+            conv_filter = conv_filter.flatten()
+            anchor_vecs.append(conv_filter)
+        return anchor_vecs
+    else:
+        print sp[0]
+        return layer_data
+
+
+# A helper function to get the anchor vectors of all layers..
 def get_anchor_vectors(model0):
     anchor_vectors = []
 
