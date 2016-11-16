@@ -15,7 +15,7 @@ import csv
 def kmeans(input_data, k, batch_size, metric='euclidean'):
     if (metric == 'cosine'):
         print 'Normalizing'
-        clusterVecs = preprocessing.normalize(clusterVecs, norm='l2')
+        input_data = preprocessing.normalize(input_data, norm='l2')
         return cosine_kmeans(input_data, k)
     elif metric == 'euclidean':
         mbk = MiniBatchKMeans(init='k-means++',
@@ -101,9 +101,10 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
     cluster_vecs = np.array(cluster_vecs)
 
-    # print 'Whitening data.'
+    print 'Whitening data.'
     cluster_vecs = whiten(cluster_vecs)
 
+    print 'Mean centering'
     cluster_vec_mean = np.mean(cluster_vecs)
     cluster_vecs = cluster_vecs - cluster_vec_mean
 

@@ -176,4 +176,4 @@ def cosine_kmeans(X, ncluster):
         centres, xtoc, dist = kmeans( X, randomcentres,
             delta=kmdelta, maxiter=kmiter, metric=metric, verbose=2 )
 
-    return centres
+    return centres, xtoc

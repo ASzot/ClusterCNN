@@ -22,6 +22,7 @@ from clustering import load_or_create_centroids
 from clustering import build_patch_vecs
 from model_wrapper import ModelWrapper
 from helpers.mathhelper import *
+from kmeans_handler import KMeansHandler
 from load_runner import LoadRunner
 from anchor_normalizer import AnchorVecNormalizer
 from model_analyzer import ModelAnalyzer
@@ -71,57 +72,7 @@ def fetch_data(test_size):
     data = dataset.data.reshape((dataset.data.shape[0], 28, 28))
     data = data[:, np.newaxis, :, :]
 
-    return train_test_split(data / 255.0, dataset.target.astype('int'), test_size=test_size)
-
-
-def save_raw_output(filename, output):
-    print 'Saving raw data'
-    with open (filename, 'wb') as f:
-        writer = csv.writer(f, delimiter=',')
-        total = len(output)
-        sp = np.array(output).shape
-        if len(sp) > 2:
-            inner_prod = 1
-            for dim in sp[1:]:
-                inner_prod *= dim
-            output = output.reshape(sp[0], int(inner_prod))
-        for i, output_vec in enumerate(output):
-            writer.writerow(output_vec)
-
-
-def get_filepaths(extra_path, using_kmeans):
-    centroids_out_loc = 'data/centroids/'
-    raw_out_loc = 'data/centroids/'
-
-    raw_out_loc += 'python'
-    centroids_out_loc += 'python'
-
-    if using_kmeans:
-        raw_out_loc += '_kmeans'
-        centroids_out_loc += '_kmeans'
-    else:
-        raw_out_loc += 'reg'
-        centroids_out_loc += 'reg'
-
-    raw_out_loc += extra_path
-    centroids_out_loc += extra_path
-    raw_out_loc += '/raw/'
-    centroids_out_loc += '/cluster/'
-
-    if not os.path.exists(raw_out_loc):
-        os.makedirs(raw_out_loc)
-    if not os.path.exists(centroids_out_loc):
-        os.makedirs(centroids_out_loc)
-
-    return (raw_out_loc, centroids_out_loc)
-
-
-def create_model(train_percentage, should_set_weights, extra_path = '', use_matlab=False, activation_func='relu'):
-    # Break the data up into test and training set.
-    # This will be set at 0.3 is test and 0.7 is training.
-    (train_data, test_data, train_labels, test_labels) = fetch_data(0.3)
-
-    remaining = int(len(train_data) * train_percentage)
+    (train_data, test_data, train_labels, test_labels) = train_test_split(data / 255.0, dataset.target.astype('int'), test_size=test_size)
 
     train_labels = np_utils.to_categorical(train_labels, 10)
     test_labels = np_utils.to_categorical(test_labels, 10)
@@ -131,6 +82,19 @@ def create_model(train_percentage, should_set_weights, extra_path = '', use_matl
     train_labels = np.array(train_labels[0:use_amount])
     test_data = np.array(test_data[0:use_amount])
     test_labels = np.array(test_labels[0:use_amount])
+
+    return (train_data, test_data, train_labels, test_labels)
+
+
+
+
+
+def create_model(train_percentage, should_set_weights, extra_path = '', activation_func='relu'):
+    # Break the data up into test and training set.
+    # This will be set at 0.3 is test and 0.7 is training.
+    (train_data, test_data, train_labels, test_labels) = fetch_data(0.3, 5000)
+
+    remaining = int(len(train_data) * train_percentage)
 
     # Only use a given amount of the training data.
     scaled_train_data = train_data[0:remaining]
@@ -144,87 +108,40 @@ def create_model(train_percentage, should_set_weights, extra_path = '', use_matl
     filter_size=(5,5)
     batch_size = 5
     nkerns = (6, 16)
+    fc_sizes = (120, 84, 10)
     force_create = False
 
-    input_centroids = [None] * 5
-    layer_out = [None] * 4
+    kmeans_handler = KMeansHandler(should_set_weights, force_create, batch_size,
+                    subsample, filter_size, train_data)
+    kmeans_handler.set_filepaths(extra_path)
 
     model = Sequential()
 
-    using_kmeans = all(should_set_weight for should_set_weight in should_set_weights)
+    f_conv_out = None
 
-    raw_out_loc, centroids_out_loc = get_filepaths(extra_path, using_kmeans)
-
-    if force_create:
-        save_raw_output(raw_out_loc + 'c0.csv', train_data)
-
-    if should_set_weights[0]:
-        print 'Setting conv layer 0 weights'
-        tmp_centroids = load_or_create_centroids(force_create, centroids_out_loc + 'c0.csv', batch_size, train_data, input_shape, subsample, filter_size, 6)
-        assert tmp_centroids.shape == (6, 25), 'Shape is %s' % str(tmp_centroids.shape)
-        input_centroids[0] = tmp_centroids.reshape(6, 1, 5, 5)
-
-    convout0_f = add_convlayer(model, nkerns[0], subsample, filter_size, input_shape=input_shape, weights=input_centroids[0])
-
-    layer_out[0] = convout0_f([train_data])[0]
-
-    if force_create:
-        save_raw_output(raw_out_loc + 'c1.csv', layer_out[0])
-
-    if should_set_weights[1]:
-        print 'Setting conv layer 1 weights'
-        input_shape = (nkerns[0], 14, 14)
-        tmp_centroids = load_or_create_centroids(force_create, centroids_out_loc + 'c1.csv', batch_size, layer_out[0], input_shape, subsample, filter_size, 16)
-        assert tmp_centroids.shape == (16, 150), 'Shape is %s' % str(tmp_centroids.shape)
-        input_centroids[1] = tmp_centroids.reshape(16, 6, 5, 5)
-
-    convout1_f = add_convlayer(model, nkerns[1], subsample, filter_size, input_shape=input_shape, weights=input_centroids[1])
-    layer_out[1] = convout1_f([train_data])[0]
-
-    if force_create:
-        save_raw_output(raw_out_loc + 'f0.csv', layer_out[1])
+    for i in range(len(nkerns)):
+        output_shape = (nkerns[i], input_shape[0], filter_size[0], filter_size[1])
+        assert_shape = (nkerns[i], input_shape[0] * filter_size[0] * filter_size[1])
+        centroid_weights = kmeans_handler.handle_kmeans(i, 'c' + i, nkerns[i], input_shape, output_shape,
+                                f_conv_out, True, assert_shape = assert_shape)
+        f_conv_out = add_convlayer(model, nkerns[0], subsample, filter_size, input_shape = input_shape, weights = centroids_weights)
+        input_shape = (nkerns[i], input_shape[1] / 2, input_shape[2] / 2)
 
     model.add(Flatten())
 
-    if should_set_weights[2]:
-        print 'Setting fc layer 0 weights'
-        input_shape = (nkerns[1], 7, 7)
-        tmp_centroids = load_or_create_centroids(force_create, centroids_out_loc + 'f0.csv', batch_size, layer_out[1], input_shape, subsample, filter_size, 120, convolute=False)
-        assert tmp_centroids.shape == (120, 784), 'Shape is %s' % str(tmp_centroids.shape)
-        input_centroids[2] = tmp_centroids.reshape(784, 120)
+    f_fc_out = None
 
-    fc0_f = add_fclayer(model, 120, weights = input_centroids[2])
-    layer_out[2] = fc0_f([train_data])[0]
-
-    if force_create:
-        save_raw_output(raw_out_loc + 'f1.csv', layer_out[2])
-
-    if should_set_weights[3]:
-        print 'Setting fc layer 1 weights'
-        input_shape = (120,)
-        tmp_centroids = load_or_create_centroids(force_create, centroids_out_loc + 'f1.csv', batch_size, layer_out[2], input_shape, subsample, filter_size, 84, convolute=False)
-        assert tmp_centroids.shape == (84, 120), 'Shape is %s' % str(tmp_centroids.shape)
-        input_centroids[3] = tmp_centroids.reshape(120, 84)
-
-    fc1_f = add_fclayer(model, 84, weights=input_centroids[3])
-    layer_out[3] = fc1_f([train_data])[0]
-
-    if force_create:
-        save_raw_output(raw_out_loc + 'f2.csv', layer_out[3])
-
-    if should_set_weights[4]:
-        print 'Setting classifier weights'
-        input_shape=(84,)
-        tmp_centroids = load_or_create_centroids(force_create, centroids_out_loc + 'f2.csv', batch_size, layer_out[3], input_shape, subsample, filter_size, 10, convolute=False)
-        assert tmp_centroids.shape == (10, 84), 'Shape is %s' % str(tmp_centroids.shape)
-        input_centroids[4] = tmp_centroids.reshape(84, 10)
-
-    classification_layer = Dense(10)
-    model.add(classification_layer)
-
-    if should_set_weights[4]:
-        bias = classification_layer.get_weights()[1]
-        classification_layer.set_weights([input_centroids[4], bias])
+    for i in range(len(fc_sizes)):
+        assert_shape = (fc_sizes[i], input_shape.prod())
+        offset_index = i + len(nkerns)
+        centroid_weights = kmeans_handler.handle_kmeans(offset_index, 'f' + i, fc_sizes[i], input_shape, output_shape,
+                                f_fc_out, False, assert_shape = assert_shape)
+        if i == len(fc_sizes) - 1:
+            classification_layer = Dense(fc_sizes[i])
+            model.add(classification_layer)
+        else:
+            f_fc_out = add_fclayer(model, fc_sizes[i], weights = centroid_weights)
+        input_shape = (fc_sizes[i],)
 
     model.add(Activation('softmax'))
 
@@ -233,8 +150,7 @@ def create_model(train_percentage, should_set_weights, extra_path = '', use_matl
     model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
     if len(scaled_train_data) > 0:
-        anchor_vec_normalizer = AnchorVecNormalizer(filter_size, nkerns)
-        model.fit(scaled_train_data, train_labels, batch_size=batch_size, nb_epoch=20, verbose=1, callbacks=[anchor_vec_normalizer])
+        model.fit(scaled_train_data, train_labels, batch_size=batch_size, nb_epoch=20, verbose=1)
 
     (loss, accuracy) = model.evaluate(test_data, test_labels, batch_size=batch_size, verbose=1)
     print ''
@@ -242,18 +158,17 @@ def create_model(train_percentage, should_set_weights, extra_path = '', use_matl
 
     ret_model = ModelWrapper(accuracy, input_centroids, model)
 
-    if not using_kmeans:
-        anchor_vecs = get_anchor_vectors(ret_model)
-        names = ['c0', 'c1', 'f0', 'f1', 'f2']
-        for i, layer_anchor_vecs in enumerate(anchor_vecs):
-            save_raw_output(centroids_out_loc + names[i] + '.csv', layer_anchor_vecs)
-
     return ret_model
 
 
 def create_models():
-    kmeans_model = create_model(0.4, [True] * 5, extra_path = 'whitened')
+    kmeans_model = create_model(0.3, [True] * 5, extra_path='_TEST_white_sub_mean_norm')
     # reg_model = create_model(0.0, [False] * 5)
+
+
+def test_accuracy():
+    kmeans_model = create_model(0.4, [True] * 5, extra_path='whitened_cosine')
+    print 'Accuracy obtained was ' + str(kmeans_model.accuracy)
 
 
 def create_accuracies():
@@ -297,11 +212,11 @@ def analyze_models():
     print reg_data_means
 
 
-    if not model_analyzer.load('data/centroids/python_kmeanswhitened'):
+    if not model_analyzer.load('data/centroids/python_kmeans_TEST_sub_mean_norm'):
         print 'Could not load models.'
         return False
 
-    model_analyzer.whiten_data(reg_data_stds)
+    # model_analyzer.whiten_data(reg_data_stds)
     kmeans_data_means = model_analyzer.get_data_means()
     kmeans_data_stds = model_analyzer.get_data_stds()
     print kmeans_data_means
@@ -314,4 +229,7 @@ def analyze_models():
     model_analyzer.show_table()
 
 # create_accuracies()
-analyze_accuracies()
+# analyze_accuracies()
+# create_models()
+# analyze_models()
+# test_accuracy()
