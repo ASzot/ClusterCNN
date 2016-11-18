@@ -11,6 +11,8 @@ import sklearn.preprocessing as preprocessing
 from clustering_cosine import cosine_kmeans
 from scipy.cluster.vq import whiten
 import csv
+from helpers.printhelper import PrintHelper as ph
+
 
 def kmeans(input_data, k, batch_size, metric='euclidean'):
     if (metric == 'cosine'):
@@ -56,7 +58,10 @@ def get_image_patches(inputImg, inputShape, stride, filterShape):
 def build_patch_vecs(dataSetX, inputShape, stride, filterShape):
     patchVecs = []
     total = len(dataSetX)
+    display_percent = len(dataSetX) / 10
     for i, dataX in enumerate(dataSetX):
+        if i % display_percent == 0:
+            print '----%.2f%%' % ((float(i) / float(len(dataSetX))) * 100.)
         patches = get_image_patches(dataX, inputShape, stride, filterShape)
 
         # Flatten each of the vectors.
@@ -75,7 +80,7 @@ def save_centroids(centroids, filename):
 
 
 def load_centroids(filename):
-    print 'Loading cluster data...'
+    print 'Attempting to load cluster data...'
     centroids = []
     with open(filename, 'rb') as f:
         reader = csv.reader(f)
@@ -90,6 +95,7 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
         cluster_vecs = build_patch_vecs(train_set_x, input_shape, stride, filter_shape)
     else:
         # Flatten the input.
+        train_set_x = np.array(train_set_x)
         sp = train_set_x.shape
 
         # Not garunteed to be 3 dimensions as the input will be flattened.
@@ -101,13 +107,6 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
     cluster_vecs = np.array(cluster_vecs)
 
-    print 'Whitening data.'
-    cluster_vecs = whiten(cluster_vecs)
-
-    print 'Mean centering'
-    cluster_vec_mean = np.mean(cluster_vecs)
-    cluster_vecs = cluster_vecs - cluster_vec_mean
-
     if raw_save_loc != '':
         print 'Saving image patches'
         with open(raw_save_loc, 'wb') as f:
@@ -115,7 +114,14 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
             for cluster_vec in cluster_vecs:
                 csvwriter.writerow(cluster_vec)
 
-    print 'Beginning k - means'
+    # print 'Whitening data.'
+    # cluster_vecs = whiten(cluster_vecs)
+
+    ph.disp('Mean centering')
+    cluster_vec_mean = np.mean(cluster_vecs)
+    cluster_vecs = cluster_vecs - cluster_vec_mean
+
+    ph.disp('Beginning k - means')
     centroids = kmeans(cluster_vecs, k, batch_size)
 
     # Normalize each of the centroids.
@@ -129,14 +135,13 @@ def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_
     if not forceCreate:
         try:
             centroids = load_centroids(filename)
+            print 'Load succeded'
         except IOError:
+            print 'Load failed'
             forceCreate = True
 
     if forceCreate:
         centroids = construct_centroids(raw_save_loc, batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute)
-        # Whiten the data.
-        # centroids = whiten(centroids)
-
         save_centroids(centroids, filename)
 
     return centroids

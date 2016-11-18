@@ -9,6 +9,8 @@ from keras.models import load_model
 from keras.optimizers import SGD
 from keras.utils import np_utils
 
+from helpers.printhelper import PrintHelper
+
 import numpy as np
 
 from sklearn.cross_validation import train_test_split
@@ -18,7 +20,6 @@ import csv
 import pickle
 import os
 
-from clustering import load_or_create_centroids
 from clustering import build_patch_vecs
 from model_wrapper import ModelWrapper
 from helpers.mathhelper import *
@@ -67,7 +68,7 @@ def add_fclayer(model, output_dim, weights=None, activation_func='relu'):
     return fcOut_f
 
 
-def fetch_data(test_size):
+def fetch_data(test_size, use_amount):
     dataset = datasets.fetch_mldata('MNIST Original')
     data = dataset.data.reshape((dataset.data.shape[0], 28, 28))
     data = data[:, np.newaxis, :, :]
@@ -77,22 +78,46 @@ def fetch_data(test_size):
     train_labels = np_utils.to_categorical(train_labels, 10)
     test_labels = np_utils.to_categorical(test_labels, 10)
 
-    use_amount = 5000
-    train_data = np.array(train_data[0:use_amount])
-    train_labels = np.array(train_labels[0:use_amount])
-    test_data = np.array(test_data[0:use_amount])
-    test_labels = np.array(test_labels[0:use_amount])
+    if use_amount is not None:
+        train_data = np.array(train_data[0:use_amount])
+        train_labels = np.array(train_labels[0:use_amount])
+        test_data = np.array(test_data[0:use_amount])
+        test_labels = np.array(test_labels[0:use_amount])
 
     return (train_data, test_data, train_labels, test_labels)
 
+class FilterParams(object):
+    CUTOFF = 2000
+
+    def __init__(self, min_variance, selection_percent):
+        self.min_variance = min_variance
+        self.selection_percent = selection_percent
+
+    def filter_samples(self, samples):
+        sample_variances = [(sample, np.var(sample)) for sample in samples]
+        variances = [sample_variance[1] for sample_variance in sample_variances]
+        sample_variances = [(sample, variance) for sample, variance in sample_variances if variance > self.min_variance]
+        selection_count = int(len(sample_variances) * self.selection_percent)
+        # order by variance.
+        sample_variances = sorted(sample_variances, key = lambda x: x[1])
+        samples = [sample_variance[0] for sample_variance in sample_variances]
+        samples = samples[0:selection_count]
+        if selection_count > self.CUTOFF:
+            print '-----Greater than the cutoff randomly sampling'
+            selected_samples = []
+            for i in np.arange(self.CUTOFF):
+                select_index = np.random.randint(len(samples))
+                selected_samples.append(samples[select_index])
+                del samples[select_index]
+            return selected_samples
+        else:
+            return samples
 
 
-
-
-def create_model(train_percentage, should_set_weights, extra_path = '', activation_func='relu'):
+def create_model(train_percentage, should_set_weights, extra_path = '', activation_func='relu', filter_params = None):
     # Break the data up into test and training set.
     # This will be set at 0.3 is test and 0.7 is training.
-    (train_data, test_data, train_labels, test_labels) = fetch_data(0.3, 5000)
+    (train_data, test_data, train_labels, test_labels) = fetch_data(0.3, None)
 
     remaining = int(len(train_data) * train_percentage)
 
@@ -111,30 +136,32 @@ def create_model(train_percentage, should_set_weights, extra_path = '', activati
     fc_sizes = (120, 84, 10)
     force_create = False
 
-    kmeans_handler = KMeansHandler(should_set_weights, force_create, batch_size,
-                    subsample, filter_size, train_data)
+    kmeans_handler = KMeansHandler(should_set_weights, force_create, batch_size, subsample, filter_size, train_data, filter_params)
     kmeans_handler.set_filepaths(extra_path)
 
     model = Sequential()
 
     f_conv_out = None
 
+    # Create the convolution layers.
     for i in range(len(nkerns)):
         output_shape = (nkerns[i], input_shape[0], filter_size[0], filter_size[1])
         assert_shape = (nkerns[i], input_shape[0] * filter_size[0] * filter_size[1])
-        centroid_weights = kmeans_handler.handle_kmeans(i, 'c' + i, nkerns[i], input_shape, output_shape,
+        centroid_weights = kmeans_handler.handle_kmeans(i, 'c' + str(i), nkerns[i], input_shape, output_shape,
                                 f_conv_out, True, assert_shape = assert_shape)
-        f_conv_out = add_convlayer(model, nkerns[0], subsample, filter_size, input_shape = input_shape, weights = centroids_weights)
+        f_conv_out = add_convlayer(model, nkerns[i], subsample, filter_size, input_shape = input_shape, weights = centroid_weights)
         input_shape = (nkerns[i], input_shape[1] / 2, input_shape[2] / 2)
 
     model.add(Flatten())
 
     f_fc_out = None
 
+    # Create the FC layers.
     for i in range(len(fc_sizes)):
-        assert_shape = (fc_sizes[i], input_shape.prod())
+        output_shape = (np.array(input_shape).prod(), fc_sizes[i])
+        assert_shape = (fc_sizes[i], np.array(input_shape).prod())
         offset_index = i + len(nkerns)
-        centroid_weights = kmeans_handler.handle_kmeans(offset_index, 'f' + i, fc_sizes[i], input_shape, output_shape,
+        centroid_weights = kmeans_handler.handle_kmeans(offset_index, 'f' + str(i), fc_sizes[i], input_shape, output_shape,
                                 f_fc_out, False, assert_shape = assert_shape)
         if i == len(fc_sizes) - 1:
             classification_layer = Dense(fc_sizes[i])
@@ -156,14 +183,14 @@ def create_model(train_percentage, should_set_weights, extra_path = '', activati
     print ''
     print 'Accuracy %.9f%%' % (accuracy * 100.)
 
-    ret_model = ModelWrapper(accuracy, input_centroids, model)
+    ret_model = ModelWrapper(accuracy, None, model)
 
     return ret_model
 
 
 def create_models():
-    kmeans_model = create_model(0.3, [True] * 5, extra_path='_TEST_white_sub_mean_norm')
-    # reg_model = create_model(0.0, [False] * 5)
+    kmeans_model = create_model(0.0, [True] * 5, extra_path='kmeans', filter_params=FilterParams(0.03, 0.5))
+    # reg_model = create_model(0.0, [False] * 5, extra_path='reg')
 
 
 def test_accuracy():
@@ -230,6 +257,6 @@ def analyze_models():
 
 # create_accuracies()
 # analyze_accuracies()
-# create_models()
+create_models()
 # analyze_models()
 # test_accuracy()

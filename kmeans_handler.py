@@ -1,6 +1,17 @@
+import os
+import csv
+import numpy as np
+
+from helpers.printhelper import PrintHelper as ph
+
+from clustering import load_or_create_centroids
+
+
 class KMeansHandler(object):
-    def __init__(should_set_weights, force_create, batch_size,
-                    subsample, filter_size, train_data):
+    SHOULD_SAVE_RAW = False
+
+    def __init__(self, should_set_weights, force_create, batch_size,
+                    subsample, filter_size, train_data, filter_params):
         self.should_set_weights = should_set_weights
         self.force_create = force_create
         self.batch_size = batch_size
@@ -9,8 +20,9 @@ class KMeansHandler(object):
         self.centroids_out_loc = ''
         self.raw_out_loc = ''
         self.train_data = train_data
+        self.filter_params = filter_params
 
-    def set_filepaths(extra_path):
+    def set_filepaths(self, extra_path):
         centroids_out_loc = 'data/centroids/'
         raw_out_loc = 'data/centroids/'
 
@@ -30,17 +42,34 @@ class KMeansHandler(object):
         self.raw_out_loc = raw_out_loc
         self.centroids_out_loc = centroids_out_loc
 
-    def handle_kmeans(layer_index, save_name, k, input_shape, output_shape, f_prev_out, convolute, assert_shape = None):
+    def handle_kmeans(self, layer_index, save_name, k, input_shape, output_shape, f_prev_out,
+                        convolute, assert_shape = None):
+
+        print_str = ('-' * 10) + ('LAYER %i' % (layer_index)) + ('-' * 10)
+        ph.disp(print_str, ph.OKGREEN)
+
+        print 'Input shape ' + str(input_shape)
+        print 'Assert shape' + str(assert_shape)
+        print 'Output shape ' + str(output_shape)
+
         if f_prev_out is None:
             layer_out = self.train_data
         else:
             layer_out = f_prev_out([self.train_data])[0]
 
-        if force_create:
-            self.__save_raw_output(raw_out_loc + save_name + '.csv', layer_out)
+        layer_out = np.array(layer_out)
+
+        if self.filter_params is not None:
+            print ('-' * 5) + 'Filtering input.'
+            before_len = len(layer_out)
+            layer_out = self.filter_params.filter_samples(layer_out)
+            after_len = len(layer_out)
+            print ('-' * 5) + '%i reduced to %i' % (before_len, after_len)
+
+        if self.SHOULD_SAVE_RAW and self.force_create:
+            self.__save_raw_output(self.raw_out_loc + save_name + '.csv', layer_out)
 
         if self.should_set_weights[layer_index]:
-            print 'Setting layer %i weights' % (i)
             tmp_centroids = load_or_create_centroids(self.force_create, self.centroids_out_loc +
                 save_name + '.csv', self.batch_size, layer_out, input_shape, self.subsample,
                 self.filter_size, k, convolute=convolute)
@@ -50,7 +79,7 @@ class KMeansHandler(object):
         else:
             return None
 
-    def __save_raw_output(filename, output):
+    def __save_raw_output(self, filename, output):
         print 'Saving raw data'
         with open (filename, 'wb') as f:
             writer = csv.writer(f, delimiter=',')
