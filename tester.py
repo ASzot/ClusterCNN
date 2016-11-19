@@ -9,7 +9,8 @@ from keras.models import load_model
 from keras.optimizers import SGD
 from keras.utils import np_utils
 
-from helpers.printhelper import PrintHelper
+from helpers.printhelper import PrintHelper as ph
+from model_layers.discriminatory_filter import DiscriminatoryFilter
 
 import numpy as np
 
@@ -25,7 +26,6 @@ from model_wrapper import ModelWrapper
 from helpers.mathhelper import *
 from kmeans_handler import KMeansHandler
 from load_runner import LoadRunner
-from anchor_normalizer import AnchorVecNormalizer
 from model_analyzer import ModelAnalyzer
 
 import plotly.plotly as py
@@ -46,9 +46,12 @@ def add_convlayer(model, nkern, subsample, filter_size, input_shape=None, weight
 
         convLayer.set_weights([weights, bias])
 
-    model.add(Activation(activation_func))
     max_pooling_out = MaxPooling2D(pool_size=(2,2), strides=(2,2))
+    activation_layer = Activation(activation_func)
+
     model.add(max_pooling_out)
+    model.add(activation_layer)
+
     convout_f = K.function([model.layers[0].input], [max_pooling_out.output])
     return convout_f
 
@@ -86,32 +89,7 @@ def fetch_data(test_size, use_amount):
 
     return (train_data, test_data, train_labels, test_labels)
 
-class FilterParams(object):
-    CUTOFF = 2000
 
-    def __init__(self, min_variance, selection_percent):
-        self.min_variance = min_variance
-        self.selection_percent = selection_percent
-
-    def filter_samples(self, samples):
-        sample_variances = [(sample, np.var(sample)) for sample in samples]
-        variances = [sample_variance[1] for sample_variance in sample_variances]
-        sample_variances = [(sample, variance) for sample, variance in sample_variances if variance > self.min_variance]
-        selection_count = int(len(sample_variances) * self.selection_percent)
-        # order by variance.
-        sample_variances = sorted(sample_variances, key = lambda x: x[1])
-        samples = [sample_variance[0] for sample_variance in sample_variances]
-        samples = samples[0:selection_count]
-        if selection_count > self.CUTOFF:
-            print '-----Greater than the cutoff randomly sampling'
-            selected_samples = []
-            for i in np.arange(self.CUTOFF):
-                select_index = np.random.randint(len(samples))
-                selected_samples.append(samples[select_index])
-                del samples[select_index]
-            return selected_samples
-        else:
-            return samples
 
 
 def create_model(train_percentage, should_set_weights, extra_path = '', activation_func='relu', filter_params = None):
@@ -134,7 +112,8 @@ def create_model(train_percentage, should_set_weights, extra_path = '', activati
     batch_size = 5
     nkerns = (6, 16)
     fc_sizes = (120, 84, 10)
-    force_create = False
+    force_create = True
+    n_epochs = 10
 
     kmeans_handler = KMeansHandler(should_set_weights, force_create, batch_size, subsample, filter_size, train_data, filter_params)
     kmeans_handler.set_filepaths(extra_path)
@@ -177,7 +156,7 @@ def create_model(train_percentage, should_set_weights, extra_path = '', activati
     model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
 
     if len(scaled_train_data) > 0:
-        model.fit(scaled_train_data, train_labels, batch_size=batch_size, nb_epoch=20, verbose=1)
+        model.fit(scaled_train_data, train_labels, batch_size=batch_size, nb_epoch=n_epochs, verbose=1)
 
     (loss, accuracy) = model.evaluate(test_data, test_labels, batch_size=batch_size, verbose=1)
     print ''
@@ -189,34 +168,36 @@ def create_model(train_percentage, should_set_weights, extra_path = '', activati
 
 
 def create_models():
-    kmeans_model = create_model(0.0, [True] * 5, extra_path='kmeans', filter_params=FilterParams(0.03, 0.5))
-    # reg_model = create_model(0.0, [False] * 5, extra_path='reg')
+    kmeans_model = create_model(0.1, [True] * 5, extra_path='kmeans', filter_params=DiscriminatoryFilter(0.03, 0.5))
+    # reg_model = create_model(0.1, [False] * 5, extra_path='reg')
 
 
 def test_accuracy():
-    kmeans_model = create_model(0.4, [True] * 5, extra_path='whitened_cosine')
+    kmeans_model = create_model(0.2, [True] * 5, extra_path='whitened_cosine')
     print 'Accuracy obtained was ' + str(kmeans_model.accuracy)
 
 
 def create_accuracies():
     all_accuracies = []
-    for use_data in np.arange(0.0, 0.4, 0.1):
-        kmeans_model = create_model(use_data, [True] * 5, extra_path='_kmeans_train')
+    for use_data in np.arange(0.0, 0.4, 0.05):
+        kmeans_model = create_model(use_data, [True] * 5, extra_path='kmeans_train', filter_params=DiscriminatoryFilter(0.03, 0.5))
         kmeans_accuracy = kmeans_model.accuracy
+        ph.disp('Accuracy for kmeans %.9f%%' % (kmeans_accuracy), ph.HEADER)
         del kmeans_model
 
-        reg_model = create_model(use_data, [False] * 5, extra_path='_reg_train')
+        reg_model = create_model(use_data, [False] * 5, extra_path='reg_train')
         reg_accuracy = reg_model.accuracy
+        ph.disp('Accuracy for regular %.9f%%' % (reg_accuracy), ph.HEADER)
         del reg_model
 
         all_accuracies.append((kmeans_accuracy, reg_accuracy))
 
-    with open('accuracy_comparison.dat', 'wb') as f:
+    with open('data/accuracies/accuracy_comparison.dat', 'wb') as f:
         pickle.dump(all_accuracies, f)
 
 
 def analyze_accuracies():
-    with open('accuracy_comparison.dat', 'rb') as f:
+    with open('data/accuracies/accuracy_comparison.dat', 'rb') as f:
         all_accuracies = pickle.load(f)
 
     kmeans_accuracies, reg_accuracies = zip(*all_accuracies)
