@@ -20,3 +20,7 @@ class PrintHelper(object):
             final_str += PrintHelper.ENDC
 
         print final_str
+
+    @staticmethod
+    def linebreak():
+        print '\n' * 2

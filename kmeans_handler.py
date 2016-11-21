@@ -21,6 +21,13 @@ class KMeansHandler(object):
         self.raw_out_loc = ''
         self.train_data = train_data
         self.filter_params = filter_params
+        self.prev_out = None
+
+
+    def set_filter_params(self, min_variance, selection_percent):
+        self.filter_params.min_variance = min_variance
+        self.filter_params.selection_percent = selection_percent
+
 
     def set_filepaths(self, extra_path):
         centroids_out_loc = 'data/centroids/'
@@ -42,9 +49,9 @@ class KMeansHandler(object):
         self.raw_out_loc = raw_out_loc
         self.centroids_out_loc = centroids_out_loc
 
+
     def handle_kmeans(self, layer_index, save_name, k, input_shape, output_shape, f_prev_out,
                         convolute, assert_shape = None):
-
         print_str = ('-' * 10) + ('LAYER %i' % (layer_index)) + ('-' * 10)
         ph.disp(print_str, ph.OKGREEN)
 
@@ -53,18 +60,15 @@ class KMeansHandler(object):
         print 'Output shape ' + str(output_shape)
 
         if f_prev_out is None:
+            # This is the first layer.
+            print 'Starting with the training data.'
             layer_out = self.train_data
         else:
-            layer_out = f_prev_out([self.train_data])[0]
+            # Chain the output from the previous.
+            ph.disp('Chaining from previous output.')
+            layer_out = f_prev_out([self.prev_out])[0]
 
-        layer_out = np.array(layer_out)
-
-        if self.filter_params is not None:
-            print ('-' * 5) + 'Filtering input.'
-            before_len = len(layer_out)
-            layer_out = self.filter_params.filter_samples(layer_out)
-            after_len = len(layer_out)
-            print ('-' * 5) + '%i reduced to %i' % (before_len, after_len)
+        self.prev_out = layer_out
 
         if self.SHOULD_SAVE_RAW and self.force_create:
             self.__save_raw_output(self.raw_out_loc + save_name + '.csv', layer_out)
@@ -72,12 +76,13 @@ class KMeansHandler(object):
         if self.should_set_weights[layer_index]:
             tmp_centroids = load_or_create_centroids(self.force_create, self.centroids_out_loc +
                 save_name + '.csv', self.batch_size, layer_out, input_shape, self.subsample,
-                self.filter_size, k, convolute=convolute)
+                self.filter_size, k, self.filter_params, convolute=convolute)
             if assert_shape is not None:
                 assert tmp_centroids.shape == assert_shape, 'Shape is %s' % str(tmp_centroids.shape)
             return tmp_centroids.reshape(output_shape)
         else:
             return None
+
 
     def __save_raw_output(self, filename, output):
         print 'Saving raw data'

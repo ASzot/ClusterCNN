@@ -90,7 +90,7 @@ nkerns = (6, 16)
 
 model = Sequential()
 
-convout0_f = add_convlayer(model, nkerns[0], subsample, filter_size, input_shape=input_shape)
+convout0_f = add_convlayer(model, nkerns[0], subsample, filter_size, input_shape = input_shape)
 
 convout1_f = add_convlayer(model, nkerns[1], subsample, filter_size)
 
