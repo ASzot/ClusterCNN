@@ -28,7 +28,9 @@ def kmeans(input_data, k, batch_size, metric='euclidean'):
         input_data = preprocessing.normalize(input_data, norm='l2')
         return cosine_kmeans(input_data, k)
     elif metric == 'euclidean':
+        # Set the random seed.
         mbk = MiniBatchKMeans(init='k-means++',
+                                random_state=42,
                                 n_clusters=k,
                                 batch_size=batch_size,
                                 max_no_improvement=10,
@@ -135,12 +137,11 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     # print 'Whitening data.'
     # cluster_vecs = whiten(cluster_vecs)
 
-    ph.disp('Mean centering')
     cluster_vec_mean = np.mean(cluster_vecs)
     cluster_vecs = cluster_vecs - cluster_vec_mean
 
     if filter_params is not None:
-        layer_out = filter_params.filter_samples(cluster_vecs)
+        cluster_vecs = filter_params.filter_samples(cluster_vecs)
 
     ph.disp('Beginning k - means')
     centroids = kmeans(cluster_vecs, k, batch_size)
@@ -148,6 +149,10 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     # Normalize each of the centroids.
     for i, centroid in enumerate(centroids):
         centroids[i] = (centroid / np.linalg.norm(centroid))
+
+    ph.disp('Mean centering')
+    centroid_mean = np.mean(centroids)
+    centroids -= centroid_mean
 
     return centroids
 

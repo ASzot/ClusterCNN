@@ -3,6 +3,7 @@ centroids
 models
 *.pyc
 *.pkl
+*.swp
 testing
 data
 dontadd.py

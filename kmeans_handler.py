@@ -64,8 +64,9 @@ class KMeansHandler(object):
             print 'Starting with the training data.'
             layer_out = self.train_data
         else:
-            # Chain the output from the previous.
-            ph.disp('Chaining from previous output.')
+            if self.should_set_weights[layer_index]:
+                # Chain the output from the previous.
+                ph.disp('Chaining from previous output.')
             layer_out = f_prev_out([self.prev_out])[0]
 
         self.prev_out = layer_out
@@ -97,3 +98,4 @@ class KMeansHandler(object):
                 output = output.reshape(sp[0], int(inner_prod))
             for i, output_vec in enumerate(output):
                 writer.writerow(output_vec)
+

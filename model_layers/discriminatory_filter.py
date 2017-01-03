@@ -53,3 +53,4 @@ class DiscriminatoryFilter(object):
         ph.disp(('-' * 5) + '%i reduced to %i' % (before_len, after_len))
 
         return samples
+
