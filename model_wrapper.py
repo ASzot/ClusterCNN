@@ -22,7 +22,6 @@ import pickle
 import os
 
 from clustering import build_patch_vecs
-from model_wrapper import ModelWrapper
 from helpers.mathhelper import *
 from kmeans_handler import KMeansHandler
 from load_runner import LoadRunner
@@ -35,6 +34,32 @@ class ModelWrapper(object):
     def __init__(self, hyperparams, force_create):
         self.hyperparams = hyperparams
         self.force_create = force_create
+        self.model = None
+        self.accuracy = None
+
+
+    def set_hyperparams(self, hyperparams):
+        self.hyperparams = hyperparams
+
+
+    def set_hyperparam(self, hyperparam_name, hyperparam_value):
+        if hyperparam_name.startswith('min_variances_') or hyperparam_name.startswith('selection_percentages_'):
+            name_parts = hyperparam_name.split('_')
+
+            if len(name_parts) != 3:
+                raise ValueError('Invalid hyper param name')
+
+            if isinstance(name_parts[2], int):
+                raise ValueError('Invalid index supplied to hyper param name')
+
+            attr_name = name_parts[0] + '_' + name_parts[1]
+            attr_value = getattr(self.hyperparams, attr_name)
+            attr_index = int(name_parts[2])
+
+            attr_value[attr_index] = hyperparam_value
+            self.set_hyperparam(attr_name, attr_value)
+        else:
+            setattr(self.hyperparams, hyperparam_name, hyperparam_value)
 
 
     def create_model(self):
@@ -48,9 +73,6 @@ class ModelWrapper(object):
         scaled_train_data = train_data[0:self.hyperparams.remaining]
         train_labels = train_labels[0:self.hyperparams.remaining]
 
-        print 'Running for %.2f%% test size' % (train_percentage * 100.)
-        print 'The training data has a length of %i' % (len(train_data))
-
         input_shape           =self.hyperparams.input_shape
         subsample             =self.hyperparams.subsample
         patches_subsample     =self.hyperparams.patches_subsample
@@ -58,7 +80,7 @@ class ModelWrapper(object):
         batch_size            =self.hyperparams.batch_size
         nkerns                =self.hyperparams.nkerns
         fc_sizes              =self.hyperparams.fc_sizes
-        force_create          =self.hyperparams.force_create
+        force_create          =self.force_create
         n_epochs              =self.hyperparams.n_epochs
         min_variances         =self.hyperparams.min_variances
         selection_percentages =self.hyperparams.selection_percentages
@@ -139,35 +161,36 @@ class ModelWrapper(object):
         ph.disp('-' * 50, ph.OKGREEN)
         print '\n' * 2
 
-        ret_model = ModelWrapper(accuracy, None, model)
+        self.accuracy = accuracy
+        self.model    = model
 
-        return ret_model
-
-
-        def get_layer_stats(self):
-            layer_stats = []
-            for layer in self.model.layers:
-                # Flatten the layer weights for numerical analysis.
-                layer_weights = layer.get_weights()
-                if layer_weights is None or len(layer_weights) != 2:
-                    continue
-                layer_weights = layer_weights[0]
-
-                layer_weights = np.array(layer_weights)
-                layer_weights = layer_weights.flatten()
-
-                avg = np.mean(layer_weights)
-                std = np.std(layer_weights)
-                var = np.var(layer_weights)
-                max_val = np.max(layer_weights)
-                min_val = np.min(layer_weights)
-
-                layer_stats.append((avg, std, var, max_val, min_val))
-
-            return layer_stats
+        return accuracy
 
 
-    def __add_convlayer(model, nkern, subsample, filter_size, flatten=False, input_shape=None, weights=None, activation_func='relu'):
+    def get_layer_stats(self):
+        layer_stats = []
+        for layer in self.model.layers:
+            # Flatten the layer weights for numerical analysis.
+            layer_weights = layer.get_weights()
+            if layer_weights is None or len(layer_weights) != 2:
+                continue
+            layer_weights = layer_weights[0]
+
+            layer_weights = np.array(layer_weights)
+            layer_weights = layer_weights.flatten()
+
+            avg = np.mean(layer_weights)
+            std = np.std(layer_weights)
+            var = np.var(layer_weights)
+            max_val = np.max(layer_weights)
+            min_val = np.min(layer_weights)
+
+            layer_stats.append((avg, std, var, max_val, min_val))
+
+        return layer_stats
+
+
+    def __add_convlayer(self, model, nkern, subsample, filter_size, flatten=False, input_shape=None, weights=None, activation_func='relu'):
         if input_shape is not None:
             conv_layer = Convolution2D(nkern, filter_size[0], filter_size[1], border_mode='same', subsample=subsample, input_shape=input_shape)
         else:
@@ -200,7 +223,7 @@ class ModelWrapper(object):
         return convout_f
 
 
-    def __add_dense_layer(model, output_dim, weights = None):
+    def __add_dense_layer(self, model, output_dim, weights = None):
         dense_layer = Dense(output_dim)
 
         model.add(dense_layer)
@@ -210,7 +233,7 @@ class ModelWrapper(object):
             dense_layer.set_weights([weights, bias])
 
 
-    def __add_fclayer(model, output_dim, weights=None, activation_func='relu'):
+    def __add_fclayer(self, model, output_dim, weights=None, activation_func='relu'):
         dense_layer = Dense(output_dim)
 
         model.add(dense_layer)
@@ -225,7 +248,7 @@ class ModelWrapper(object):
         return fcOut_f
 
 
-    def __fetch_data(test_size, use_amount=None):
+    def __fetch_data(self, test_size, use_amount=None):
         dataset = datasets.fetch_mldata('MNIST Original')
         data = dataset.data.reshape((dataset.data.shape[0], 28, 28))
         data = data[:, np.newaxis, :, :]
