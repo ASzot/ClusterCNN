@@ -55,13 +55,13 @@ class KMeansHandler(object):
         print_str = ('-' * 10) + ('LAYER %i' % (layer_index)) + ('-' * 10)
         ph.disp(print_str, ph.OKGREEN)
 
-        print 'Input shape ' + str(input_shape)
-        print 'Assert shape' + str(assert_shape)
-        print 'Output shape ' + str(output_shape)
+        ph.disp('Input shape ' + str(input_shape))
+        ph.disp('Assert shape' + str(assert_shape))
+        ph.disp('Output shape ' + str(output_shape))
 
         if f_prev_out is None:
             # This is the first layer.
-            print 'Starting with the training data.'
+            ph.disp('Starting with the training data.')
             layer_out = self.train_data
         else:
             if self.should_set_weights[layer_index]:
@@ -86,7 +86,7 @@ class KMeansHandler(object):
 
 
     def __save_raw_output(self, filename, output):
-        print 'Saving raw data'
+        ph.disp('Saving raw data')
         with open (filename, 'wb') as f:
             writer = csv.writer(f, delimiter=',')
             total = len(output)

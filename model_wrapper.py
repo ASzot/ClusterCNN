@@ -31,11 +31,12 @@ import matplotlib.pyplot as plt
 
 
 class ModelWrapper(object):
-    def __init__(self, hyperparams, force_create):
-        self.hyperparams = hyperparams
-        self.force_create = force_create
-        self.model = None
-        self.accuracy = None
+    def __init__(self, hyperparams, force_create, should_set_weights=[True]*5):
+        self.hyperparams        = hyperparams
+        self.force_create       = force_create
+        self.model              = None
+        self.accuracy           = None
+        self.should_set_weights = should_set_weights
 
 
     def set_hyperparams(self, hyperparams):
@@ -65,7 +66,7 @@ class ModelWrapper(object):
     def create_model(self):
         # Break the data up into test and training set.
         # This will be set at 0.3 is test and 0.7 is training.
-        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3, 20000)
+        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3, 5000)
 
         #remaining = int(len(train_data) * train_percentage)
 
@@ -73,18 +74,20 @@ class ModelWrapper(object):
         scaled_train_data = train_data[0:self.hyperparams.remaining]
         train_labels = train_labels[0:self.hyperparams.remaining]
 
-        input_shape           =self.hyperparams.input_shape
-        subsample             =self.hyperparams.subsample
-        patches_subsample     =self.hyperparams.patches_subsample
-        filter_size           =self.hyperparams.filter_size
-        batch_size            =self.hyperparams.batch_size
-        nkerns                =self.hyperparams.nkerns
-        fc_sizes              =self.hyperparams.fc_sizes
-        force_create          =self.force_create
-        n_epochs              =self.hyperparams.n_epochs
-        min_variances         =self.hyperparams.min_variances
-        selection_percentages =self.hyperparams.selection_percentages
-        use_filters           =self.hyperparams.use_filters
+        input_shape           = self.hyperparams.input_shape
+        subsample             = self.hyperparams.subsample
+        patches_subsample     = self.hyperparams.patches_subsample
+        filter_size           = self.hyperparams.filter_size
+        batch_size            = self.hyperparams.batch_size
+        nkerns                = self.hyperparams.nkerns
+        fc_sizes              = self.hyperparams.fc_sizes
+        force_create          = self.force_create
+        n_epochs              = self.hyperparams.n_epochs
+        min_variances         = self.hyperparams.min_variances
+        selection_percentages = self.hyperparams.selection_percentages
+        use_filters           = self.hyperparams.use_filters
+        should_set_weights    = self.should_set_weights
+        extra_path = self.hyperparams.extra_path
 
         kmeans_handler = KMeansHandler(should_set_weights, force_create, batch_size, patches_subsample, filter_size, train_data, DiscriminatoryFilter())
         kmeans_handler.set_filepaths(extra_path)
@@ -153,13 +156,13 @@ class ModelWrapper(object):
         ph.disp('Model is compiled')
 
         if len(scaled_train_data) > 0:
-            model.fit(scaled_train_data, train_labels, batch_size=batch_size, nb_epoch=n_epochs, verbose=1)
+            model.fit(scaled_train_data, train_labels, batch_size=batch_size, nb_epoch=n_epochs, verbose=ph.DISP)
 
-        (loss,accuracy) = model.evaluate(test_data, test_labels, batch_size=batch_size, verbose=1)
-        print ''
+        (loss,accuracy) = model.evaluate(test_data, test_labels, batch_size=batch_size, verbose=ph.DISP)
+        ph.linebreak()
         ph.disp('Accuracy %.9f%%' % (accuracy * 100.), ph.BOLD)
         ph.disp('-' * 50, ph.OKGREEN)
-        print '\n' * 2
+        ph.linebreak()
 
         self.accuracy = accuracy
         self.model    = model

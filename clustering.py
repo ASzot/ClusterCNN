@@ -24,7 +24,7 @@ def kmeans(input_data, k, batch_size, metric='euclidean'):
         raise ValueError()
 
     if (metric == 'cosine'):
-        print 'Normalizing'
+        ph.disp('Normalizing')
         input_data = preprocessing.normalize(input_data, norm='l2')
         return cosine_kmeans(input_data, k)
     elif metric == 'euclidean':
@@ -78,7 +78,7 @@ def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
     display_percent = total / 10
     for i, data_x in enumerate(data_set_x):
         if i % display_percent == 0:
-            print '----%.2f%%' % ((float(i) / float(len(data_set_x))) * 100.)
+            ph.disp('----%.2f%%' % ((float(i) / float(len(data_set_x))) * 100.))
 
         patches = get_image_patches(data_x, input_shape, stride, filter_shape)
 
@@ -90,7 +90,7 @@ def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
 
 
 def save_centroids(centroids, filename):
-    print 'Saving to file...'
+    ph.disp('Saving to file...')
     with open(filename, 'wb') as f:
         writer = csv.writer(f)
         for centroid in centroids:
@@ -98,7 +98,7 @@ def save_centroids(centroids, filename):
 
 
 def load_centroids(filename):
-    print 'Attempting to load cluster data...'
+    ph.disp('Attempting to load cluster data...')
     centroids = []
     with open(filename, 'rb') as f:
         reader = csv.reader(f)
@@ -108,7 +108,7 @@ def load_centroids(filename):
 
 
 def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stride, filter_shape, k, convolute, filter_params):
-    print '- Building centroids'
+    ph.disp('- Building centroids')
     if convolute:
         ph.disp('--Building patch vecs from %i vectors' % len(train_set_x))
         cluster_vecs = build_patch_vecs(train_set_x, input_shape, stride, filter_shape)
@@ -128,7 +128,7 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     cluster_vecs = np.array(cluster_vecs)
 
     if raw_save_loc != '':
-        print 'Saving image patches'
+        ph.disp('Saving image patches')
         with open(raw_save_loc, 'wb') as f:
             csvwriter = csv.writer(f)
             for cluster_vec in cluster_vecs:
@@ -161,9 +161,9 @@ def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_
     if not forceCreate:
         try:
             centroids = load_centroids(filename)
-            print 'Load succeded'
+            ph.disp('Load succeded')
         except IOError:
-            print 'Load failed'
+            ph.disp('Load failed')
             forceCreate = True
 
     if forceCreate:

@@ -8,8 +8,12 @@ class PrintHelper(object):
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
+    DISP = True
+
     @staticmethod
     def disp(txt, txt_type = None):
+        if not PrintHelper.DISP:
+            return
         final_str = ""
         if txt_type is not None:
             final_str += txt_type
@@ -23,4 +27,6 @@ class PrintHelper(object):
 
     @staticmethod
     def linebreak():
+        if not PrintHelper.DISP:
+            return
         print '\n' * 2

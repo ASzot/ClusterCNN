@@ -41,7 +41,7 @@ class DiscriminatoryFilter(object):
         samples = [sample_variance[0] for sample_variance in sample_variances]
         samples = samples[0:selection_count]
         if (self.CUTOFF is not None) and selection_count > self.CUTOFF:
-            print '-----Greater than the cutoff randomly sampling'
+            ph.disp('-----Greater than the cutoff randomly sampling')
             selected_samples = []
             for i in np.arange(self.CUTOFF):
                 select_index = np.random.randint(len(samples))

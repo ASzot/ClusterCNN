@@ -1,8 +1,10 @@
 import matplotlib.pyplot as plt
 import pickle
+import numpy as np
 from helpers.hyper_params import HyperParamData
 from helpers.hyper_param_search import HyperParamSearch
 from model_wrapper import ModelWrapper
+from helpers.printhelper import PrintHelper as ph
 
 def plot_accuracies():
     with open('data/kmeans_accuracies.h5', 'r') as f:
@@ -19,7 +21,7 @@ def plot_accuracies():
     plt.show()
 
 
-def run():
+def run(save = False):
     hyperparams = HyperParamData(
         input_shape = (1, 28, 28),
         subsample=(1,1),
@@ -39,14 +41,37 @@ def run():
 
     model = ModelWrapper(hyperparams, force_create=True)
 
+    selection = np.concatenate([np.arange(0.01, 0.4, 0.01), np.array([0.2, 0.3, 0.4, 0.5, 0.6])])
+
+    min_variance = np.concatenate([np.arange(0.4, 0.5, 0.01), np.arange(0.01, 0.1, 0.01), np.array([0.1, 0.2, 0.3, 0.5, 0.6, 0.7])])
+
+    ph.disp('Searching %i possible combinations' % (len(selection) * len(min_variance)), ph.OKGREEN)
+
     param_search = HyperParamSearch(model, 'create_model',
             {
-                'selection_percentages_0': [0.03, 0.09, 0.12],
-                'min_variances_0': [0.5, 0.05, 0.005],
+                'selection_percentages_0': selection,
+                'min_variances_0': min_variance
             })
 
-    print param_search.search()
+    param_result = param_search.search()
+    print param_search.get_max_point()
+
+    if save:
+        with open('data/hyperparam_search.h5', 'w') as f:
+            pickle.dump(param_result, f)
+
+    print 'Saved to file!'
+
+
+def load():
+    with open('data/hyperparam_search.h5', 'r') as f:
+        param_result = pickle.load(f)
+
+    print len(param_result)
+    param_search = HyperParamSearch(hyper_params_range = { 'selection_percentages_0': [], 'min_variances_0': []}, points = param_result)
+    param_search.show_graph()
 
 if __name__ == "__main__":
-    run()
+    #run(True)
+    load()
 

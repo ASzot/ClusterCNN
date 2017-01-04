@@ -7,7 +7,7 @@ class HyperParamData:
         self.patches_subsample     = patches_subsample
         self.filter_size           = patches_subsample
         self.batch_size            = batch_size
-        self.nkerns                = batch_size
+        self.nkerns                = nkerns
         self.fc_sizes              = fc_sizes
         self.n_epochs              = n_epochs
         self.min_variances         = min_variances
