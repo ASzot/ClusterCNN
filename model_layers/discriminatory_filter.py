@@ -31,7 +31,7 @@ class DiscriminatoryFilter(object):
         prev_len = len(variances)
         sample_variances = [(sample, variance) for sample, variance in sample_variances if variance > self.min_variance]
 
-        ph.disp('-----%i samples discarded from min variance' % (len(sample_variances) - prev_len))
+        ph.disp('-----%i samples discarded from min variance' % (prev_len - len(sample_variances)))
 
         selection_count = int(len(sample_variances) * self.selection_percent)
         ph.disp('-----Trying to select %i samples' % selection_count)

@@ -76,6 +76,8 @@ def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
     patch_vecs = []
     total = len(data_set_x)
     display_percent = total / 10
+    ph.disp('----Filter shape is ' + str(filter_shape))
+    ph.disp('----Stride is ' + str(stride))
     for i, data_x in enumerate(data_set_x):
         if i % display_percent == 0:
             ph.disp('----%.2f%%' % ((float(i) / float(len(data_set_x))) * 100.))
@@ -84,6 +86,8 @@ def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
 
         if i == 0:
             ph.disp('Got %i patches for each vector' % (len(patches)), ph.WARNING)
+            patch_np = np.array(patches[0])
+            ph.disp('Patch dimension is %s' % (patch_np.shape))
         patch_vecs.extend(patches)
 
     return patch_vecs

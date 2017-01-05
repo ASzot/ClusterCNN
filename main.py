@@ -6,26 +6,12 @@ from helpers.hyper_param_search import HyperParamSearch
 from model_wrapper import ModelWrapper
 from helpers.printhelper import PrintHelper as ph
 
-def plot_accuracies():
-    with open('data/kmeans_accuracies.h5', 'r') as f:
-        kmeans_acc_data = pickle.load(f)
 
-    with open('data/reg_accuracies.h5', 'r') as f:
-        reg_accuracies = pickle.load(f)
-
-    X = [point * 10 for point in range(len(reg_accuracies))]
-
-    plt.plot(X, kmeans_acc_data, color='blue')
-    plt.plot(X, reg_accuracies, color='red')
-
-    plt.show()
-
-
-def run(save = False):
-    hyperparams = HyperParamData(
+def get_hyperparams():
+    return HyperParamData(
         input_shape = (1, 28, 28),
         subsample=(1,1),
-        patches_subsample = (5,5),
+        patches_subsample = (1,1),
         filter_size=(5,5),
         batch_size = 5,
         nkerns = (6,16),
@@ -39,6 +25,9 @@ def run(save = False):
         should_set_weights = [True] * 5,
         remaining = 100)
 
+
+def run(save = False):
+    hyperparams = get_hyperparams()
     model = ModelWrapper(hyperparams, force_create=True)
 
     selection = np.concatenate([np.arange(0.01, 0.4, 0.01), np.array([0.2, 0.3, 0.4, 0.5, 0.6])])
@@ -63,15 +52,96 @@ def run(save = False):
     print 'Saved to file!'
 
 
+def test():
+    hyperparams = get_hyperparams()
+
+    interval = 5
+    trails = 3
+    total = 750
+    kmeans_accs = []
+    reg_accs = []
+
+    ph.DISP = False
+
+    total_range = np.concatenate([np.arange(0, total, interval), np.arange(800, 5000, 100)])
+
+    print 'Trying for %i train sizes' % (len(total_range))
+
+    for i in total_range:
+        percentage = float(i) / float(total)
+        print ''
+        print '%.2f%%, %i' % (percentage * 100., i)
+        print ''
+        total_kmeans_acc = 0.0
+        total_reg_acc = 0.0
+
+        hyperparams.remaining = i
+        for j in range(trails):
+            hyperparams.should_set_weights = [True] * 5
+            hyperparams.extra_path = 'kmeans'
+            model = ModelWrapper(hyperparams, force_create=False)
+            total_kmeans_acc += model.create_model()
+
+            hyperparams.should_set_weights = [False] * 5
+            hyperparams.extra_path = 'reg'
+            model = ModelWrapper(hyperparams, force_create=False)
+            total_reg_acc += model.create_model()
+
+        kmeans_acc = total_kmeans_acc / float(trails)
+        reg_acc = total_reg_acc / float(trails)
+
+        print kmeans_acc
+        print reg_acc
+
+        kmeans_accs.append((i, kmeans_acc))
+        reg_accs.append((i, reg_acc))
+
+    ph.DISP = True
+
+    with open('data/kmeans_accuracies.h5', 'w') as f:
+        pickle.dump(kmeans_accs, f)
+
+    with open('data/reg_accuracies.h5', 'w') as f:
+        pickle.dump(reg_accs, f)
+
+
+def single_test():
+    hyperparams = get_hyperparams()
+    hyperparams.extra_path = 'kmeans'
+    model = ModelWrapper(hyperparams, force_create=False)
+    print model.create_model()
+
+
+def load_accuracies():
+    with open('data/kmeans_accuracies.h5', 'r') as f:
+        kmeans_accs = pickle.load(f)
+
+    with open('data/reg_accuracies.h5', 'r') as f:
+        reg_accs = pickle.load(f)
+
+    X = [kmeans_acc[0] for kmeans_acc in kmeans_accs]
+    Y1 = [reg_acc[1] for reg_acc in reg_accs]
+    Y2 = [kmeans_acc[1] for kmeans_acc in kmeans_accs]
+
+    plt.plot(X, Y1, color='red')
+    plt.plot(X, Y2, color='blue')
+
+    plt.show()
+
+
 def load():
     with open('data/hyperparam_search.h5', 'r') as f:
         param_result = pickle.load(f)
 
-    print len(param_result)
     param_search = HyperParamSearch(hyper_params_range = { 'selection_percentages_0': [], 'min_variances_0': []}, points = param_result)
     param_search.show_graph()
+
+    print param_search.get_max_point()
 
 if __name__ == "__main__":
     #run(True)
     load()
+    #test()
+    #single_test()
+    #load_accuracies()
 

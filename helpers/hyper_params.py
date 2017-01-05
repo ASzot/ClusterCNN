@@ -5,7 +5,7 @@ class HyperParamData:
         self.input_shape           = input_shape
         self.subsample             = subsample
         self.patches_subsample     = patches_subsample
-        self.filter_size           = patches_subsample
+        self.filter_size           = filter_size
         self.batch_size            = batch_size
         self.nkerns                = nkerns
         self.fc_sizes              = fc_sizes

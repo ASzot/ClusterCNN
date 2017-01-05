@@ -31,12 +31,11 @@ import matplotlib.pyplot as plt
 
 
 class ModelWrapper(object):
-    def __init__(self, hyperparams, force_create, should_set_weights=[True]*5):
+    def __init__(self, hyperparams, force_create):
         self.hyperparams        = hyperparams
         self.force_create       = force_create
         self.model              = None
         self.accuracy           = None
-        self.should_set_weights = should_set_weights
 
 
     def set_hyperparams(self, hyperparams):
@@ -66,7 +65,7 @@ class ModelWrapper(object):
     def create_model(self):
         # Break the data up into test and training set.
         # This will be set at 0.3 is test and 0.7 is training.
-        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3, 5000)
+        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3, 20000)
 
         #remaining = int(len(train_data) * train_percentage)
 
@@ -86,8 +85,8 @@ class ModelWrapper(object):
         min_variances         = self.hyperparams.min_variances
         selection_percentages = self.hyperparams.selection_percentages
         use_filters           = self.hyperparams.use_filters
-        should_set_weights    = self.should_set_weights
-        extra_path = self.hyperparams.extra_path
+        should_set_weights    = self.hyperparams.should_set_weights
+        extra_path            = self.hyperparams.extra_path
 
         kmeans_handler = KMeansHandler(should_set_weights, force_create, batch_size, patches_subsample, filter_size, train_data, DiscriminatoryFilter())
         kmeans_handler.set_filepaths(extra_path)
