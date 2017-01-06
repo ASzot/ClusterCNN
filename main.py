@@ -120,13 +120,20 @@ def load_accuracies():
         reg_accs = pickle.load(f)
 
     X = [kmeans_acc[0] for kmeans_acc in kmeans_accs]
-    Y1 = [reg_acc[1] for reg_acc in reg_accs]
-    Y2 = [kmeans_acc[1] for kmeans_acc in kmeans_accs]
+    Y1 = [reg_acc[1] * 100. for reg_acc in reg_accs]
+    Y2 = [kmeans_acc[1] * 100. for kmeans_acc in kmeans_accs]
 
-    plt.plot(X, Y1, color='red')
-    plt.plot(X, Y2, color='blue')
+    kmeans_line, = plt.plot(X, Y1, label='Regular', color='red')
+    reg_line, = plt.plot(X, Y2, label='KMeans', color='blue')
+    plt.legend(handles=[kmeans_line, reg_line], loc=4)
+    plt.xlabel('# of samples')
+    plt.ylabel('Accuracy %')
+    plt.title('Accuracy vs Sample Count')
 
-    plt.show()
+    plt.savefig('data/figs/accuracy1.png')
+    plt.xlim([0,1000])
+
+    plt.savefig('data/figs/accuracy2.png')
 
 
 def load():

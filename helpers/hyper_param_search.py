@@ -1,4 +1,6 @@
 import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
 import matplotlib.pyplot as plt
 import scipy.interpolate
 from helpers.printhelper import PrintHelper as ph
@@ -88,31 +90,47 @@ class HyperParamSearch:
         x_name = param_names[0]
         y_name = param_names[1]
 
-        X = [point[x_name] for point in self.points]
-        Y = [point[y_name] for point in self.points]
-        Z = [point['accuracy'] for point in self.points]
+        #points = [point for point in self.points if (point[y_name] <= 0.1 and point[x_name] < 0.4)]
+        use_points = self.points
+        #for point in self.points:
+        #    if point[y_name] <= 0.6:
+        #        use_points.append(point)
+        #    else:
+        #        print 'Point excluded'
+
+        X = [point[x_name] for point in use_points]
+        Y = [point[y_name] for point in use_points]
+        Z = [point['accuracy'] for point in use_points]
 
         X = np.array(X)
         Y = np.array(Y)
         Z = np.array(Z)
 
-        factor = 1.0
-        if X.max() < 1.0:
-            factor = 10.0
+        Z *= 100.
 
-        X *= factor
-        Y *= factor
-        Z *= factor
+        draw_3d = False
 
-        xi, yi = np.linspace(X.min(), X.max(), 100), np.linspace(Y.min(), Y.max(), 1)
+        if draw_3d:
+            fig = plt.figure()
+            ax = fig.gca(projection='3d')
+            ax.plot_trisurf(X, Y, Z, cmap=cm.jet, linewidth=0.2)
+        else:
+            z_min, z_max = 0.0, 100.
 
-        xi, yi = np.meshgrid(xi, yi)
-        rbf = scipy.interpolate.Rbf(X, Y, Z, function='linear')
-        zi = rbf(xi, yi)
-        plt.imshow(zi, vmin=Z.min(), vmax=Z.max(), origin='lower', extent=[X.min(), X.max(), Y.min(), Y.max()])
-        plt.scatter(X, Y, c=Z)
-        plt.colorbar()
-        plt.savefig("data/paramcontour.png")
+            xi, yi = np.linspace(X.min(), X.max(), 100), np.linspace(Y.min(), Y.max(), 100)
+
+            xi, yi = np.meshgrid(xi, yi)
+            rbf = scipy.interpolate.Rbf(X, Y, Z, function='linear')
+            zi = rbf(xi, yi)
+            plt.pcolor(xi, yi, zi, cmap='RdBu')
+            #plt.imshow(zi, vmin=Z.min(), vmax=Z.max(), origin='lower', extent=[X.min(), X.max(), Y.min(), Y.max()])
+            #plt.scatter(X, Y, c=Z)
+            plt.colorbar()
+            plt.xlabel(x_name)
+            plt.ylabel(y_name)
+            plt.title(r'Accuracy Effect of Selection % and Min $\sigma ^ 2$')
+
+        plt.savefig("data/figs/paramcontour.png")
         plt.show()
 
 
