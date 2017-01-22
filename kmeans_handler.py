@@ -78,6 +78,7 @@ class KMeansHandler(object):
             tmp_centroids = load_or_create_centroids(self.force_create, self.centroids_out_loc +
                 save_name + '.csv', self.batch_size, layer_out, input_shape, self.subsample,
                 self.filter_size, k, self.filter_params, convolute=convolute)
+
             if assert_shape is not None:
                 assert tmp_centroids.shape == assert_shape, 'Shape is %s' % str(tmp_centroids.shape)
             return tmp_centroids.reshape(output_shape)

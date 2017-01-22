@@ -18,7 +18,7 @@ class PrintHelper(object):
         if txt_type is not None:
             final_str += txt_type
 
-        final_str += txt
+        final_str += str(txt)
 
         if txt_type is not None:
             final_str += PrintHelper.ENDC

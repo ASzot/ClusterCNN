@@ -84,7 +84,7 @@ class ModelWrapper(object):
                     one_hot_train.append(j)
 
             if len(one_hot_train) == start_count:
-                print 'New elements have not been appended'
+                raise ValueError('New elements have not been appended.')
                 return
 
         pred_counts = []
@@ -103,6 +103,43 @@ class ModelWrapper(object):
 
         self.pred_dist = pred_counts
         self.actual_dist = actual_counts
+
+    def __clear_layer_stats(self):
+        self.layer_weight_stds = []
+        self.layer_weight_avgs = []
+        self.layer_anchor_mags_std = []
+        self.layer_anchor_mags_avg = []
+        self.anchor_vec_spreads_std = []
+
+
+    def __set_layer_stats(self, anchor_vecs):
+        layer_std = np.std(anchor_vecs)
+        layer_avg = np.mean(anchor_vecs)
+
+        anchor_mags = [np.linalg.norm(anchor_vec) for anchor_vec in anchor_vecs]
+        anchor_mag_std = np.std(anchor_mags)
+        anchor_mag_avg = np.mean(anchor_mags)
+
+        anchor_vec_spreads = []
+        for i, anchor_vec in enumerate(anchor_vecs):
+            compare_angles = []
+            for j, compare_vec in enumerate(anchor_vecs):
+                if j == i:
+                    continue
+                angle = angle_between(compare_vec, anchor_vec)
+                compare_angles.append(angle)
+            compare_angle_avg = np.mean(compare_angles)
+            anchor_vec_spreads.append(compare_angle_avg)
+
+        anchor_vec_spread_std = np.std(np.std(anchor_vec_spreads))
+
+        self.anchor_vec_spreads_std.append(anchor_vec_spread_std)
+
+        self.layer_anchor_mags_avg.append(anchor_mag_avg)
+        self.layer_anchor_mags_std.append(anchor_mag_std)
+
+        self.layer_weight_stds.append(layer_std)
+        self.layer_weight_avgs.append(layer_avg)
 
 
     def create_model(self):
@@ -140,6 +177,8 @@ class ModelWrapper(object):
         model = Sequential()
 
         f_conv_out = None
+
+        self.__clear_layer_stats()
 
         # Create the convolution layers.
         for i in range(len(nkerns)):
@@ -179,8 +218,8 @@ class ModelWrapper(object):
 
             output_shape = (np.array(input_shape).prod(), fc_sizes[i])
             assert_shape = (fc_sizes[i], np.array(input_shape).prod())
-            centroid_weights = kmeans_handler.handle_kmeans(offset_index, 'f' + str(i), fc_sizes[i], input_shape, output_shape,
-                                    f_fc_out, False, assert_shape = assert_shape)
+            centroid_weights = kmeans_handler.handle_kmeans(offset_index, 'f' + str(i), fc_sizes[i],
+                    input_shape, output_shape, f_fc_out, False, assert_shape = assert_shape)
 
             if should_set_weights[offset_index]:
                 ph.disp('Setting layer weights')
@@ -215,6 +254,10 @@ class ModelWrapper(object):
 
         self.accuracy = accuracy
         self.model    = model
+
+        all_anchor_vecs = get_anchor_vectors(self)
+        for anchor_vecs in all_anchor_vecs:
+            self.__set_layer_stats(anchor_vecs)
 
 
     def get_layer_stats(self):

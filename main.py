@@ -27,6 +27,36 @@ def get_hyperparams():
         remaining = 0)
 
 
+def single_test():
+    hyperparams = get_hyperparams()
+    hyperparams.extra_path = 'kmeans'
+    model = ModelWrapper(hyperparams, force_create=True)
+    model.create_model()
+    model.eval_performance()
+
+    ph.linebreak()
+    ph.disp('Anchor Vec Spread Std: ')
+    ph.disp(model.anchor_vec_spreads_std)
+
+    ph.linebreak()
+    ph.disp('Layer Weight Stds: ')
+    ph.disp(model.layer_weight_stds)
+    ph.disp('Layer Weight Avgs: ')
+    ph.disp(model.layer_weight_avgs)
+
+    ph.linebreak()
+    ph.disp('Layer Mag Avg: ')
+    ph.disp(model.layer_anchor_mags_avg)
+    ph.disp('Layer Mag Std: ')
+    ph.disp(model.layer_anchor_mags_std)
+
+    ph.linebreak()
+    print 'Model prediction distribution: ' + str(np.std(model.pred_dist))
+    print model.pred_dist
+    print 'Actual distribution: ' + str(np.std(model.actual_dist))
+    print model.actual_dist
+
+
 def run(save = False):
     hyperparams = get_hyperparams()
     model = ModelWrapper(hyperparams, force_create=True)
@@ -105,15 +135,6 @@ def test():
     with open('data/reg_accuracies.h5', 'w') as f:
         pickle.dump(reg_accs, f)
 
-
-def single_test():
-    hyperparams = get_hyperparams()
-    hyperparams.extra_path = 'kmeans'
-    model = ModelWrapper(hyperparams, force_create=True)
-    model.create_model()
-    model.eval_performance()
-    print 'Model prediction distribution: ' + str(np.std(model.pred_dist))
-    print 'Actual distribution: ' + str(np.std(model.actual_dist))
 
 
 def load_accuracies():

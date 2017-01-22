@@ -21,7 +21,6 @@ def get_layer_anchor_vectors(layer_data):
         print sp[0]
         return layer_data
 
-
 # A helper function to get the anchor vectors of all layers..
 def get_anchor_vectors(model0):
     anchor_vectors = []

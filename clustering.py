@@ -113,6 +113,7 @@ def load_centroids(filename):
 
 def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stride, filter_shape, k, convolute, filter_params):
     ph.disp('- Building centroids')
+
     if convolute:
         ph.disp('--Building patch vecs from %i vectors' % len(train_set_x))
         cluster_vecs = build_patch_vecs(train_set_x, input_shape, stride, filter_shape)
