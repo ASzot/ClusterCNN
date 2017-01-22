@@ -23,7 +23,8 @@ def get_hyperparams():
         activation_func = 'relu',
         extra_path = '',
         should_set_weights = [True] * 5,
-        remaining = 100)
+        should_eval = True,
+        remaining = 0)
 
 
 def run(save = False):
@@ -108,8 +109,11 @@ def test():
 def single_test():
     hyperparams = get_hyperparams()
     hyperparams.extra_path = 'kmeans'
-    model = ModelWrapper(hyperparams, force_create=False)
-    print model.create_model()
+    model = ModelWrapper(hyperparams, force_create=True)
+    model.create_model()
+    model.eval_performance()
+    print 'Model prediction distribution: ' + str(np.std(model.pred_dist))
+    print 'Actual distribution: ' + str(np.std(model.actual_dist))
 
 
 def load_accuracies():
@@ -147,8 +151,8 @@ def load():
 
 if __name__ == "__main__":
     #run(True)
-    load()
+    #load()
     #test()
-    #single_test()
+    single_test()
     #load_accuracies()
 

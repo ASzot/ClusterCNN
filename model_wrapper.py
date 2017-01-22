@@ -62,10 +62,55 @@ class ModelWrapper(object):
             setattr(self.hyperparams, hyperparam_name, hyperparam_value)
 
 
+    def eval_performance(self):
+        all_train_data = zip(self.all_train_x, self.all_train_y)
+        all_pred_y = self.model.predict(self.all_train_x)
+
+        one_hot_pred = []
+        for i in range(len(all_pred_y)):
+            pred_y = all_pred_y[i]
+            max_index = 0
+            for j in range(len(pred_y)):
+                if pred_y[j] > pred_y[max_index]:
+                    max_index = j
+            one_hot_pred.append(max_index)
+
+        one_hot_train = []
+        for i in range(len(self.all_train_y)):
+            start_count = len(one_hot_train)
+
+            for j, train_y in enumerate(self.all_train_y[i]):
+                if train_y != 0:
+                    one_hot_train.append(j)
+
+            if len(one_hot_train) == start_count:
+                print 'New elements have not been appended'
+                return
+
+        pred_counts = []
+        actual_counts = []
+        max_val = 9
+        min_val = 0
+        for i in range(min_val, max_val + 1):
+            pred_val_count = len([pred for pred in one_hot_pred if pred == i])
+            pred_counts.append(pred_val_count)
+
+            actual_val_count = len([train for train in one_hot_train if train == i])
+            actual_counts.append(actual_val_count)
+
+        pred_counts = np.array(pred_counts)
+        actual_counts = np.array(actual_counts)
+
+        self.pred_dist = pred_counts
+        self.actual_dist = actual_counts
+
+
     def create_model(self):
         # Break the data up into test and training set.
         # This will be set at 0.3 is test and 0.7 is training.
-        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3, 20000)
+        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3, 1000)
+        self.all_train_x = train_data
+        self.all_train_y =  train_labels
 
         #remaining = int(len(train_data) * train_percentage)
 
@@ -86,6 +131,7 @@ class ModelWrapper(object):
         selection_percentages = self.hyperparams.selection_percentages
         use_filters           = self.hyperparams.use_filters
         should_set_weights    = self.hyperparams.should_set_weights
+        should_eval           = self.hyperparams.should_eval
         extra_path            = self.hyperparams.extra_path
 
         kmeans_handler = KMeansHandler(should_set_weights, force_create, batch_size, patches_subsample, filter_size, train_data, DiscriminatoryFilter())
@@ -157,7 +203,11 @@ class ModelWrapper(object):
         if len(scaled_train_data) > 0:
             model.fit(scaled_train_data, train_labels, batch_size=batch_size, nb_epoch=n_epochs, verbose=ph.DISP)
 
-        (loss,accuracy) = model.evaluate(test_data, test_labels, batch_size=batch_size, verbose=ph.DISP)
+        if should_eval:
+            (loss, accuracy) = model.evaluate(test_data, test_labels, batch_size=batch_size, verbose=ph.DISP)
+        else:
+            accuracy = 0.0
+
         ph.linebreak()
         ph.disp('Accuracy %.9f%%' % (accuracy * 100.), ph.BOLD)
         ph.disp('-' * 50, ph.OKGREEN)
@@ -165,8 +215,6 @@ class ModelWrapper(object):
 
         self.accuracy = accuracy
         self.model    = model
-
-        return accuracy
 
 
     def get_layer_stats(self):
