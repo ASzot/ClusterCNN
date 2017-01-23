@@ -10,24 +10,30 @@ class DiscriminatoryFilter(object):
 
 
     def filter_samples(self, samples):
+        before_len = len(samples)
+
+        sample_variances = [(sample, np.std(sample)) for sample in samples]
+        variances = [sample_variance[1] for sample_variance in sample_variances]
+
+        overall_var = np.std(samples)
+        overall_avg = np.mean(samples)
+        per_sample_var = np.std(variances)
+        per_sample_avg = np.mean(variances)
+
+        thresh_fact = 2.0
+        self.min_variance = per_sample_avg + (thresh_fact * per_sample_var)
+
+        ph.disp('STD: %.5f, Avg: %.5f' % (overall_var, overall_avg), ph.OKGREEN)
+        ph.disp('Per Sample STD: STD: %.5f, Avg: %.5f' % (per_sample_var, per_sample_avg), ph.OKGREEN)
+
         if self.min_variance is None or self.selection_percent is None:
             ph.disp('Skipping discriminatory filter', ph.FAIL)
             return samples
 
         ph.disp(('-' * 5) + 'Filtering input.')
-        before_len = len(samples)
-
-        overall_var = np.std(samples)
-        overall_avg = np.mean(samples)
-
-        # self.min_variance = overall_var / 4.0
-
-        ph.disp('Var: %.5f, Avg: %.5f' % (overall_var, overall_avg), ph.OKGREEN)
 
         ph.disp('-----Min variance: %.5f, Select: %.5f%%' % (self.min_variance, (self.selection_percent * 100.)))
         ph.disp('-----Starting with %i samples' % len(samples))
-        sample_variances = [(sample, np.std(sample)) for sample in samples]
-        variances = [sample_variance[1] for sample_variance in sample_variances]
         prev_len = len(variances)
         sample_variances = [(sample, variance) for sample, variance in sample_variances if variance > self.min_variance]
 

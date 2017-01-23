@@ -20,6 +20,7 @@ from sklearn import datasets
 import csv
 import pickle
 import os
+import operator
 
 from clustering import build_patch_vecs
 from helpers.mathhelper import *
@@ -75,28 +76,74 @@ class ModelWrapper(object):
                     max_index = j
             one_hot_pred.append(max_index)
 
-        one_hot_train = []
-        for i in range(len(self.all_train_y)):
-            start_count = len(one_hot_train)
-
-            for j, train_y in enumerate(self.all_train_y[i]):
-                if train_y != 0:
-                    one_hot_train.append(j)
-
-            if len(one_hot_train) == start_count:
-                raise ValueError('New elements have not been appended.')
-                return
+        one_hot_train = convert_onehot_to_index(self.all_train_y)
 
         pred_counts = []
         actual_counts = []
         max_val = 9
         min_val = 0
+        pred_clusters = []
         for i in range(min_val, max_val + 1):
-            pred_val_count = len([pred for pred in one_hot_pred if pred == i])
+            comb = zip(one_hot_pred, one_hot_train)
+            pred_cluster = [actual for pred, actual in comb if pred == i]
+            pred_clusters.append(pred_cluster)
+
+            pred_val_count = len(pred_cluster)
             pred_counts.append(pred_val_count)
 
             actual_val_count = len([train for train in one_hot_train if train == i])
             actual_counts.append(actual_val_count)
+
+        all_cluster_freq = []
+        for cluster_data in pred_clusters:
+            cluster_freq = {}
+            for actual in cluster_data:
+                if actual not in cluster_freq:
+                    cluster_freq[actual] = 1
+                else:
+                    cluster_freq[actual] += 1
+
+            cluster_freq = sorted(cluster_freq.items(), key=operator.itemgetter(1), reverse=True)
+            all_cluster_freq.append(cluster_freq)
+        for pred, cluster_freq in enumerate(all_cluster_freq):
+            print str(pred) + ':' + str(cluster_freq)
+
+        accum_freq = []
+        for pred, cluster in enumerate(all_cluster_freq):
+            accum_freq.extend([(pred, cluster_ele[0], cluster_ele[1]) for cluster_ele in cluster])
+
+        accum_freq = sorted(accum_freq, key = lambda tup: tup[2], reverse=True)
+
+        self.pred_to_actual = {}
+        self.actual_to_pred = {}
+        while len(self.pred_to_actual) < 10 and len(accum_freq) > 0:
+            top = accum_freq.pop(0)
+            top_pred = top [0]
+            top_actual = top[1]
+            top_freq = top[2]
+
+            if top_actual not in self.actual_to_pred and top_pred not in self.pred_to_actual:
+                self.actual_to_pred[top_actual] = top_pred
+                self.pred_to_actual[top_pred] = top_actual
+
+        if len(self.actual_to_pred) != 10:
+            not_existing_pred_entries = range(10)
+            for actual in self.actual_to_pred:
+                pred = self.actual_to_pred[actual]
+                if pred in not_existing_pred_entries:
+                    not_existing_pred_entries.remove(pred)
+
+            if len(self.actual_to_pred) + len(not_existing_pred_entries) != 10:
+                raise ValueError('I programmed this wrong. Sorry.')
+
+            for i in range(10):
+                if i not in self.actual_to_pred:
+                    not_existing_entry = not_existing_pred_entries.pop()
+                    self.actual_to_pred[i] = not_existing_entry
+                    self.pred_to_actual[not_existing_entry] = i
+
+        for pred in self.pred_to_actual:
+            print str(pred) + '->' + str(self.pred_to_actual[pred])
 
         pred_counts = np.array(pred_counts)
         actual_counts = np.array(actual_counts)
@@ -104,12 +151,37 @@ class ModelWrapper(object):
         self.pred_dist = pred_counts
         self.actual_dist = actual_counts
 
+        if any(self.hyperparams.should_set_weights):
+            ph.disp('Remapping y values', ph.FAIL)
+            self.all_train_y = self.__remap_y(self.all_train_y)
+            self.all_test_y = self.__remap_y(self.all_test_y)
+
+
+    def __remap_y(self, y_vals):
+        # Remap the train_y and test_y values.
+        indc_y_vals = convert_onehot_to_index(y_vals)
+        mapped_inc_y_vals = [self.actual_to_pred[y_val] for y_val in indc_y_vals]
+
+        return np.array(list(convert_index_to_onehot(mapped_inc_y_vals, 10)))
+
+
     def __clear_layer_stats(self):
         self.layer_weight_stds = []
         self.layer_weight_avgs = []
         self.layer_anchor_mags_std = []
         self.layer_anchor_mags_avg = []
         self.anchor_vec_spreads_std = []
+        self.anchor_vec_spreads_avg = []
+
+        self.layer_bias_stds = []
+        self.layer_bias_avgs = []
+
+
+    def __set_layer_bias_stats(self, biases):
+        biases = np.array(list(biases))
+
+        self.layer_bias_stds.append(np.std(biases))
+        self.layer_bias_avgs.append(np.mean(biases))
 
 
     def __set_layer_stats(self, anchor_vecs):
@@ -127,13 +199,16 @@ class ModelWrapper(object):
                 if j == i:
                     continue
                 angle = angle_between(compare_vec, anchor_vec)
+                angle *= (180.0 / np.pi)
                 compare_angles.append(angle)
             compare_angle_avg = np.mean(compare_angles)
             anchor_vec_spreads.append(compare_angle_avg)
 
+        anchor_vec_spread_avg = np.mean(np.mean(anchor_vec_spreads))
         anchor_vec_spread_std = np.std(np.std(anchor_vec_spreads))
 
         self.anchor_vec_spreads_std.append(anchor_vec_spread_std)
+        self.anchor_vec_spreads_avg.append(anchor_vec_spread_avg)
 
         self.layer_anchor_mags_avg.append(anchor_mag_avg)
         self.layer_anchor_mags_std.append(anchor_mag_std)
@@ -145,15 +220,11 @@ class ModelWrapper(object):
     def create_model(self):
         # Break the data up into test and training set.
         # This will be set at 0.3 is test and 0.7 is training.
-        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3, 1000)
+        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3, 7000)
         self.all_train_x = train_data
         self.all_train_y =  train_labels
-
-        #remaining = int(len(train_data) * train_percentage)
-
-        # Only use a given amount of the training data.
-        scaled_train_data = train_data[0:self.hyperparams.remaining]
-        train_labels = train_labels[0:self.hyperparams.remaining]
+        self.all_test_x = test_data
+        self.all_test_y = test_labels
 
         input_shape           = self.hyperparams.input_shape
         subsample             = self.hyperparams.subsample
@@ -171,7 +242,8 @@ class ModelWrapper(object):
         should_eval           = self.hyperparams.should_eval
         extra_path            = self.hyperparams.extra_path
 
-        kmeans_handler = KMeansHandler(should_set_weights, force_create, batch_size, patches_subsample, filter_size, train_data, DiscriminatoryFilter())
+        kmeans_handler = KMeansHandler(should_set_weights, force_create, batch_size, patches_subsample, filter_size,
+                train_data, DiscriminatoryFilter())
         kmeans_handler.set_filepaths(extra_path)
 
         model = Sequential()
@@ -239,25 +311,37 @@ class ModelWrapper(object):
         model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
         ph.disp('Model is compiled')
 
+        self.model    = model
+
+        all_anchor_vecs = get_anchor_vectors(self)
+        all_biases = get_biases(self)
+        for anchor_vecs in all_anchor_vecs:
+            self.__set_layer_stats(anchor_vecs)
+
+        #for biases in all_biases:
+        #    self.__set_layer_bias_stats(biases)
+
+
+    def train_model(self):
+        # Only use a given amount of the training data.
+        scaled_train_data = train_data[0:self.hyperparams.remaining]
+        scaled_train_labels = train_labels[0:self.hyperparams.remaining]
+
         if len(scaled_train_data) > 0:
             model.fit(scaled_train_data, train_labels, batch_size=batch_size, nb_epoch=n_epochs, verbose=ph.DISP)
 
-        if should_eval:
-            (loss, accuracy) = model.evaluate(test_data, test_labels, batch_size=batch_size, verbose=ph.DISP)
-        else:
-            accuracy = 0.0
+        unset_bias(model)
 
+
+    def test_model(self):
+        batch_size            = self.hyperparams.batch_size
+        (loss, accuracy) = self.model.evaluate(self.all_test_x, self.all_test_y, batch_size=batch_size, verbose=ph.DISP)
         ph.linebreak()
         ph.disp('Accuracy %.9f%%' % (accuracy * 100.), ph.BOLD)
         ph.disp('-' * 50, ph.OKGREEN)
         ph.linebreak()
 
         self.accuracy = accuracy
-        self.model    = model
-
-        all_anchor_vecs = get_anchor_vectors(self)
-        for anchor_vecs in all_anchor_vecs:
-            self.__set_layer_stats(anchor_vecs)
 
 
     def get_layer_stats(self):
@@ -283,17 +367,20 @@ class ModelWrapper(object):
         return layer_stats
 
 
-    def __add_convlayer(self, model, nkern, subsample, filter_size, flatten=False, input_shape=None, weights=None, activation_func='relu'):
+    def __add_convlayer(self, model, nkern, subsample, filter_size, flatten=False, input_shape=None,
+            weights=None, activation_func='relu'):
         if input_shape is not None:
-            conv_layer = Convolution2D(nkern, filter_size[0], filter_size[1], border_mode='same', subsample=subsample, input_shape=input_shape)
+            conv_layer = Convolution2D(nkern, filter_size[0], filter_size[1], border_mode='same',
+                    subsample=subsample, input_shape=input_shape)
         else:
-            conv_layer = Convolution2D(nkern, filter_size[0], filter_size[1], border_mode='same', subsample=subsample)
+            conv_layer = Convolution2D(nkern, filter_size[0], filter_size[1], border_mode='same',
+                    subsample=subsample)
 
         model.add(conv_layer)
 
         if not weights is None:
-            params = conv_layer.get_weights()
-            bias = params[1]
+            bias = conv_layer.get_weights()[1]
+            change_bias = np.random.random_sample(bias.shape) / 10.0
 
             conv_layer.set_weights([weights, bias])
 
@@ -323,6 +410,9 @@ class ModelWrapper(object):
 
         if not weights is None:
             bias = dense_layer.get_weights()[1]
+
+            change_bias = np.random.random_sample(bias.shape) / 10.0
+
             dense_layer.set_weights([weights, bias])
 
 
@@ -333,6 +423,9 @@ class ModelWrapper(object):
 
         if not weights is None:
             bias = dense_layer.get_weights()[1]
+
+            change_bias = np.random.random_sample(bias.shape) / 10.0
+
             dense_layer.set_weights([weights, bias])
 
         fcOutLayer = Activation(activation_func)

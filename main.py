@@ -11,15 +11,15 @@ def get_hyperparams():
     return HyperParamData(
         input_shape = (1, 28, 28),
         subsample=(1,1),
-        patches_subsample = (1,1),
+        patches_subsample = (5,5),
         filter_size=(5,5),
         batch_size = 5,
-        nkerns = (6,16),
-        fc_sizes = (120, 84, 10,),
+        nkerns = (6,),
+        fc_sizes = (10,),
         n_epochs = 10,
-        min_variances = [0.3, 0.3, 4., 50., 0.6],
-        selection_percentages = [0.03, 0.5, 0.0, 0.0, 0.0],
-        use_filters = (True, False, False, False, False),
+        min_variances = [0.3, 0.9, 4., 50., 0.6],
+        selection_percentages = [0.03, 0.5, 0.5, 0.5, 0.5],
+        use_filters = (True, True, True, True, True),
         activation_func = 'relu',
         extra_path = '',
         should_set_weights = [True] * 5,
@@ -33,28 +33,41 @@ def single_test():
     model = ModelWrapper(hyperparams, force_create=True)
     model.create_model()
     model.eval_performance()
+    model.test_model()
+
+    #ph.linebreak()
+    #ph.disp('Layer Bias Std', ph.OKBLUE)
+    #ph.disp(model.layer_bias_stds)
+    #ph.disp('Layer Bias Avg', ph.OKBLUE)
+    #ph.disp(model.layer_bias_avgs)
 
     ph.linebreak()
-    ph.disp('Anchor Vec Spread Std: ')
+    ph.disp('Anchor Vec Spread Std: ', ph.OKBLUE)
     ph.disp(model.anchor_vec_spreads_std)
+    ph.disp('Anchor Vec Spread Avg: ', ph.OKBLUE)
+    ph.disp(model.anchor_vec_spreads_avg)
 
     ph.linebreak()
-    ph.disp('Layer Weight Stds: ')
+    ph.disp('Layer Weight Stds: ', ph.OKBLUE)
     ph.disp(model.layer_weight_stds)
-    ph.disp('Layer Weight Avgs: ')
+    ph.disp('Layer Weight Avgs: ', ph.OKBLUE)
     ph.disp(model.layer_weight_avgs)
 
     ph.linebreak()
-    ph.disp('Layer Mag Avg: ')
+    ph.disp('Layer Mag Avg: ', ph.OKBLUE)
     ph.disp(model.layer_anchor_mags_avg)
-    ph.disp('Layer Mag Std: ')
+    ph.disp('Layer Mag Std: ', ph.OKBLUE)
     ph.disp(model.layer_anchor_mags_std)
 
     ph.linebreak()
-    print 'Model prediction distribution: ' + str(np.std(model.pred_dist))
-    print model.pred_dist
-    print 'Actual distribution: ' + str(np.std(model.actual_dist))
-    print model.actual_dist
+    pred_dist_std = np.std(model.pred_dist)
+    actual_dist_std = np.std(model.actual_dist)
+    ph.disp('Model prediction distribution: ' + str(pred_dist_std), ph.FAIL)
+    ph.disp(model.pred_dist)
+    ph.disp('Actual distribution: ' + str(actual_dist_std), ph.FAIL)
+    ph.disp(model.actual_dist)
+    dist_ratio = pred_dist_std / actual_dist_std
+    ph.disp('Distribution Ratio: ' + str(dist_ratio), ph.FAIL)
 
 
 def run(save = False):

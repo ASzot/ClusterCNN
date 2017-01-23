@@ -1,6 +1,26 @@
 import numpy as np
 
 
+def convert_index_to_onehot(indicies, num_classes):
+    for index in indicies:
+        vec = np.zeros(num_classes)
+        vec[index] = 1.0
+        yield vec
+
+def convert_onehot_to_index(vectors):
+    indicies = []
+    for i in range(len(vectors)):
+        start_count = len(indicies)
+
+        for j, vec_ele in enumerate(vectors[i]):
+            if vec_ele != 0:
+                indicies.append(j)
+
+        if len(indicies) == start_count:
+            raise ValueError('New elements have not been appended.')
+    return indicies
+
+
 def unit_vector(vector):
     return vector / np.linalg.norm(vector)
 
@@ -20,6 +40,21 @@ def get_layer_anchor_vectors(layer_data):
     else:
         print sp[0]
         return layer_data
+
+def get_biases(model0):
+    for layer in model0.model.layers:
+        params = layer.get_weights()
+        if len(params) > 0:
+            biases = params[1]
+            yield biases
+
+def unset_bias(model0):
+    for layer in model0.model.layers:
+        params = layer.get_weights()
+        if len(params) > 0:
+            weights = params[0]
+            zero_bias = np.zeros(params[1].shape)
+            layer.set_weights([weights, zero_bias])
 
 # A helper function to get the anchor vectors of all layers..
 def get_anchor_vectors(model0):

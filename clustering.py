@@ -138,12 +138,12 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
             csvwriter = csv.writer(f)
             for cluster_vec in cluster_vecs:
                 csvwriter.writerow(cluster_vec)
-
-    # print 'Whitening data.'
-    # cluster_vecs = whiten(cluster_vecs)
-
+    ph.disp('Mean centering cluster vecs')
     cluster_vec_mean = np.mean(cluster_vecs)
     cluster_vecs = cluster_vecs - cluster_vec_mean
+
+    #ph.disp('Whitening data.')
+    #cluster_vecs = whiten(cluster_vecs)
 
     if filter_params is not None:
         cluster_vecs = filter_params.filter_samples(cluster_vecs)
@@ -152,8 +152,8 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     centroids = kmeans(cluster_vecs, k, batch_size)
 
     # Normalize each of the centroids.
-    for i, centroid in enumerate(centroids):
-        centroids[i] = (centroid / np.linalg.norm(centroid))
+    #for i, centroid in enumerate(centroids):
+    #    centroids[i] = (centroid / np.linalg.norm(centroid))
 
     ph.disp('Mean centering')
     centroid_mean = np.mean(centroids)
