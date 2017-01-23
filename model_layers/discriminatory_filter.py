@@ -20,7 +20,7 @@ class DiscriminatoryFilter(object):
         per_sample_var = np.std(variances)
         per_sample_avg = np.mean(variances)
 
-        thresh_fact = 2.0
+        thresh_fact = 0.7
         self.min_variance = per_sample_avg + (thresh_fact * per_sample_var)
 
         ph.disp('STD: %.5f, Avg: %.5f' % (overall_var, overall_avg), ph.OKGREEN)
@@ -45,7 +45,10 @@ class DiscriminatoryFilter(object):
         # Sort with the highest values first.
         sample_variances = sorted(sample_variances, key = lambda x: -x[1])
         samples = [sample_variance[0] for sample_variance in sample_variances]
-        samples = samples[0:selection_count]
+        #samples = samples[0:selection_count]
+        self.selection_percent = int(self.selection_percent)
+        samples = samples[0:self.selection_percent]
+
         if (self.CUTOFF is not None) and selection_count > self.CUTOFF:
             ph.disp('-----Greater than the cutoff randomly sampling')
             selected_samples = []

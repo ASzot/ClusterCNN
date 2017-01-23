@@ -8,13 +8,13 @@ from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.cluster import MiniBatchKMeans, KMeans
 from sklearn.metrics import pairwise
 import sklearn.preprocessing as preprocessing
-from clustering_cosine import cosine_kmeans
+from clustering_cosine import custom_kmeans
 from scipy.cluster.vq import whiten
 import csv
 from helpers.printhelper import PrintHelper as ph
 
 
-def kmeans(input_data, k, batch_size, metric='euclidean'):
+def kmeans(input_data, k, batch_size, metric='mbk'):
     ph.disp('Performing kmeans on %i vectors' % len(input_data), ph.OKBLUE)
 
     if (k > len(input_data) or batch_size > len(input_data)):
@@ -26,22 +26,29 @@ def kmeans(input_data, k, batch_size, metric='euclidean'):
     if (metric == 'cosine'):
         ph.disp('Normalizing')
         input_data = preprocessing.normalize(input_data, norm='l2')
-        return cosine_kmeans(input_data, k)
-    elif metric == 'euclidean':
+        return custom_kmeans(input_data, k, metric)
+    elif metric == 'km':
+        km = KMeans(n_clusters=k, n_init=30)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            km.fit(input_data)
+        return km.cluster_centers_
+    elif metric == 'mbk':
         # Set the random seed.
         mbk = MiniBatchKMeans(init='k-means++',
-                                random_state=42,
                                 n_clusters=k,
                                 batch_size=batch_size,
                                 max_no_improvement=10,
                                 reassignment_ratio=0.01,
+                                random_state=42,
                                 verbose=False)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             mbk.fit(input_data)
         return mbk.cluster_centers_
     else:
-        raise NameError()
+        ph.disp('Using ' + metric + ' for k-means metric', ph.HEADER)
+        return custom_kmeans(input_data, k, metric)
 
 
 def get_image_patches(input_img, input_shape, stride, filter_shape):
@@ -152,8 +159,8 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     centroids = kmeans(cluster_vecs, k, batch_size)
 
     # Normalize each of the centroids.
-    #for i, centroid in enumerate(centroids):
-    #    centroids[i] = (centroid / np.linalg.norm(centroid))
+    for i, centroid in enumerate(centroids):
+        centroids[i] = (centroid / np.linalg.norm(centroid))
 
     ph.disp('Mean centering')
     centroid_mean = np.mean(centroids)

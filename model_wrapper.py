@@ -105,8 +105,8 @@ class ModelWrapper(object):
 
             cluster_freq = sorted(cluster_freq.items(), key=operator.itemgetter(1), reverse=True)
             all_cluster_freq.append(cluster_freq)
-        for pred, cluster_freq in enumerate(all_cluster_freq):
-            print str(pred) + ':' + str(cluster_freq)
+        #for pred, cluster_freq in enumerate(all_cluster_freq):
+        #    print str(pred) + ':' + str(cluster_freq)
 
         accum_freq = []
         for pred, cluster in enumerate(all_cluster_freq):
@@ -142,8 +142,8 @@ class ModelWrapper(object):
                     self.actual_to_pred[i] = not_existing_entry
                     self.pred_to_actual[not_existing_entry] = i
 
-        for pred in self.pred_to_actual:
-            print str(pred) + '->' + str(self.pred_to_actual[pred])
+        #for pred in self.pred_to_actual:
+        #    print str(pred) + '->' + str(self.pred_to_actual[pred])
 
         pred_counts = np.array(pred_counts)
         actual_counts = np.array(actual_counts)
@@ -216,11 +216,17 @@ class ModelWrapper(object):
         self.layer_weight_stds.append(layer_std)
         self.layer_weight_avgs.append(layer_avg)
 
+    def full_create(self):
+        self.create_model()
+        self.eval_performance()
+        self.train_model()
+        self.test_model()
+        return self.accuracy
 
     def create_model(self):
         # Break the data up into test and training set.
         # This will be set at 0.3 is test and 0.7 is training.
-        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3, 7000)
+        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3, 10000)
         self.all_train_x = train_data
         self.all_train_y =  train_labels
         self.all_test_x = test_data
@@ -324,17 +330,20 @@ class ModelWrapper(object):
 
     def train_model(self):
         # Only use a given amount of the training data.
-        scaled_train_data = train_data[0:self.hyperparams.remaining]
-        scaled_train_labels = train_labels[0:self.hyperparams.remaining]
+        scaled_train_data = self.all_train_x[0:self.hyperparams.remaining]
+        scaled_train_labels = self.all_train_y[0:self.hyperparams.remaining]
 
         if len(scaled_train_data) > 0:
-            model.fit(scaled_train_data, train_labels, batch_size=batch_size, nb_epoch=n_epochs, verbose=ph.DISP)
+            self.model.fit(scaled_train_data, scaled_train_labels, batch_size=self.hyperparams.batch_size,
+                    nb_epoch=self.hyperparams.n_epochs, verbose=ph.DISP)
 
-        unset_bias(model)
+        unset_bias(self.model)
 
 
     def test_model(self):
         batch_size            = self.hyperparams.batch_size
+        self.all_test_x = self.all_test_x[0:1000]
+        self.all_test_y = self.all_test_y[0:1000]
         (loss, accuracy) = self.model.evaluate(self.all_test_x, self.all_test_y, batch_size=batch_size, verbose=ph.DISP)
         ph.linebreak()
         ph.disp('Accuracy %.9f%%' % (accuracy * 100.), ph.BOLD)

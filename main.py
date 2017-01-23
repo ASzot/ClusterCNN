@@ -8,6 +8,12 @@ from helpers.printhelper import PrintHelper as ph
 
 
 def get_hyperparams():
+    selection_start = 2000
+    selection_end = 200
+    #selection = np.linspace(selection_start, selection_end, 5)
+    #sorted(selection, reverse=True)
+    selection = [2000, 1500, 1000, 750, 100]
+
     return HyperParamData(
         input_shape = (1, 28, 28),
         subsample=(1,1),
@@ -18,7 +24,7 @@ def get_hyperparams():
         fc_sizes = (10,),
         n_epochs = 10,
         min_variances = [0.3, 0.9, 4., 50., 0.6],
-        selection_percentages = [0.03, 0.5, 0.5, 0.5, 0.5],
+        selection_percentages = selection,
         use_filters = (True, True, True, True, True),
         activation_func = 'relu',
         extra_path = '',
@@ -33,6 +39,8 @@ def single_test():
     model = ModelWrapper(hyperparams, force_create=True)
     model.create_model()
     model.eval_performance()
+    model.test_model()
+    model.train_model()
     model.test_model()
 
     #ph.linebreak()
@@ -99,15 +107,16 @@ def run(save = False):
 def test():
     hyperparams = get_hyperparams()
 
-    interval = 5
-    trails = 3
-    total = 750
+    interval = 20
+    trails = 1
+    total = 700
     kmeans_accs = []
     reg_accs = []
 
     ph.DISP = False
 
-    total_range = np.concatenate([np.arange(0, total, interval), np.arange(800, 5000, 100)])
+    #total_range = np.concatenate([np.arange(0, total, interval), np.arange(800, 5000, 100)])
+    total_range = np.arange(0, total, interval)
 
     print 'Trying for %i train sizes' % (len(total_range))
 
@@ -124,12 +133,12 @@ def test():
             hyperparams.should_set_weights = [True] * 5
             hyperparams.extra_path = 'kmeans'
             model = ModelWrapper(hyperparams, force_create=False)
-            total_kmeans_acc += model.create_model()
+            total_kmeans_acc += model.full_create()
 
             hyperparams.should_set_weights = [False] * 5
             hyperparams.extra_path = 'reg'
             model = ModelWrapper(hyperparams, force_create=False)
-            total_reg_acc += model.create_model()
+            total_reg_acc += model.full_create()
 
         kmeans_acc = total_kmeans_acc / float(trails)
         reg_acc = total_reg_acc / float(trails)
@@ -163,7 +172,7 @@ def load_accuracies():
 
     kmeans_line, = plt.plot(X, Y1, label='Regular', color='red')
     reg_line, = plt.plot(X, Y2, label='KMeans', color='blue')
-    plt.legend(handles=[kmeans_line, reg_line], loc=4)
+    plt.legend([kmeans_line, reg_line], loc=4)
     plt.xlabel('# of samples')
     plt.ylabel('Accuracy %')
     plt.title('Accuracy vs Sample Count')

@@ -15,7 +15,7 @@ __date__ = "2011-11-17 Nov denis"
     # vs unsupervised / semi-supervised svm
 
 #...............................................................................
-def kmeans( X, centres, delta=.001, maxiter=10, metric="euclidean", p=2, verbose=1 ):
+def kmeans( X, centres, delta=.001, maxiter=10, metric="euclidean", p=2, verbose=0 ):
     """ centres, Xtocentre, distances = kmeans( X, initial centres ... )
     in:
         X N x dim  may be sparse
@@ -36,16 +36,18 @@ def kmeans( X, centres, delta=.001, maxiter=10, metric="euclidean", p=2, verbose
     """
     if not issparse(X):
         X = np.asanyarray(X)  # ?
-    centres = centres.todense() if issparse(centres) \
-        else centres.copy()
+
+    centres = centres.todense() if issparse(centres) else centres.copy()
     N, dim = X.shape
     k, cdim = centres.shape
     if dim != cdim:
         raise ValueError( "kmeans: X %s and centres %s must have the same number of columns" % (
             X.shape, centres.shape ))
+
     if verbose:
         print "kmeans: X %s  centres %s  delta=%.2g  maxiter=%d  metric=%s" % (
             X.shape, centres.shape, delta, maxiter, metric)
+
     allx = np.arange(N)
     prevdist = 0
     for jiter in range( 1, maxiter+1 ):
@@ -53,11 +55,13 @@ def kmeans( X, centres, delta=.001, maxiter=10, metric="euclidean", p=2, verbose
         xtoc = D.argmin(axis=1)  # X -> nearest centre
         distances = D[allx,xtoc]
         avdist = distances.mean()  # median ?
+
         if verbose >= 2:
             print "kmeans: av |X - nearest centre| = %.4g" % avdist
-        if (1 - delta) * prevdist <= avdist <= prevdist \
-        or jiter == maxiter:
+
+        if (1 - delta) * prevdist <= avdist <= prevdist or jiter == maxiter:
             break
+
         prevdist = avdist
         for jc in range(k):  # (1 pass in C)
             c = np.where( xtoc == jc )[0]
@@ -89,6 +93,7 @@ def kmeanssample( X, k, nsample=0, **kwargs ):
     N, dim = X.shape
     if nsample == 0:
         nsample = max( 2*np.sqrt(N), 10*k )
+
     Xsample = randomsample( X, int(nsample) )
     pass1centres = randomsample( X, int(k) )
     samplecentres = kmeans( Xsample, pass1centres, **kwargs )[0]
@@ -98,7 +103,7 @@ def cdist_sparse( X, Y, **kwargs ):
     """ -> |X| x |Y| cdist array, any cdist metric
         X or Y may be sparse -- best csr
     """
-        # todense row at a time, v slow if both v sparse
+    # todense row at a time, v slow if both v sparse
     sxy = 2*issparse(X) + issparse(Y)
     if sxy == 0:
         return cdist( X, Y, **kwargs )
@@ -160,20 +165,19 @@ class Kmeans:
             yield jc, (self.Xtocentre == jc)
 
 
-def cosine_kmeans(X, ncluster):
-    dim = 10
-    kmsample = 100  # 0: random centres, > 0: kmeanssample
+def custom_kmeans(X, ncluster, distance_metric):
+    kmsample = 400  # 0: random centres, > 0: kmeanssample
     kmdelta = .001
     kmiter = 10
-    metric = "cosine"  # "chebyshev" = max, "cityblock" L1,  Lqmetric
+    X = np.array(X)
 
     # cf scikits-learn datasets/
     if kmsample > 0:
         centres, xtoc, dist = kmeanssample( X, ncluster, nsample=kmsample,
-            delta=kmdelta, maxiter=kmiter, metric=metric, verbose=2 )
+            delta=kmdelta, maxiter=kmiter, metric=distance_metric, verbose=2 )
     else:
         randomcentres = randomsample( X, ncluster )
         centres, xtoc, dist = kmeans( X, randomcentres,
-            delta=kmdelta, maxiter=kmiter, metric=metric, verbose=2 )
+            delta=kmdelta, maxiter=kmiter, metric=distance_metric, verbose=2 )
 
-    return centres, xtoc
+    return centres
