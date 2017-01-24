@@ -4,6 +4,8 @@ models
 *.pyc
 *.pkl
 *.swp
+*.swn
+*.swo
 testing
 data
 dontadd.py

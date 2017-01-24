@@ -12,7 +12,7 @@ def get_hyperparams():
     selection_end = 200
     #selection = np.linspace(selection_start, selection_end, 5)
     #sorted(selection, reverse=True)
-    selection = [2000, 1500, 1000, 750, 100]
+    selection = [0.3, 0.3, 0.3, 0.3, 0.3]
 
     return HyperParamData(
         input_shape = (1, 28, 28),
@@ -20,10 +20,10 @@ def get_hyperparams():
         patches_subsample = (5,5),
         filter_size=(5,5),
         batch_size = 5,
-        nkerns = (6,),
-        fc_sizes = (10,),
+        nkerns = (6,16),
+        fc_sizes = (120, 84, 10,),
         n_epochs = 10,
-        min_variances = [0.3, 0.9, 4., 50., 0.6],
+        min_variances = [0.5, 0.8, 0.8, 0.3, 0.04],
         selection_percentages = selection,
         use_filters = (True, True, True, True, True),
         activation_func = 'relu',
@@ -72,6 +72,8 @@ def single_test():
     actual_dist_std = np.std(model.actual_dist)
     ph.disp('Model prediction distribution: ' + str(pred_dist_std), ph.FAIL)
     ph.disp(model.pred_dist)
+    ph.disp('Model prediction map', ph.FAIL)
+    ph.disp(model.pred_to_actual)
     ph.disp('Actual distribution: ' + str(actual_dist_std), ph.FAIL)
     ph.disp(model.actual_dist)
     dist_ratio = pred_dist_std / actual_dist_std

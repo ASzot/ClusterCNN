@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.feature_selection import VarianceThreshold
 from helpers.printhelper import PrintHelper as ph
 
 class DiscriminatoryFilter(object):
@@ -8,10 +9,8 @@ class DiscriminatoryFilter(object):
         self.min_variance = min_variance
         self.selection_percent = selection_percent
 
-
-    def filter_samples(self, samples):
-        before_len = len(samples)
-
+    def custom_filter(self, samples):
+        ph.disp('Getting sample variances')
         sample_variances = [(sample, np.std(sample)) for sample in samples]
         variances = [sample_variance[1] for sample_variance in sample_variances]
 
@@ -20,8 +19,9 @@ class DiscriminatoryFilter(object):
         per_sample_var = np.std(variances)
         per_sample_avg = np.mean(variances)
 
-        thresh_fact = 0.7
+        thresh_fact = 1.0
         self.min_variance = per_sample_avg + (thresh_fact * per_sample_var)
+        self.min_variance = 0.0
 
         ph.disp('STD: %.5f, Avg: %.5f' % (overall_var, overall_avg), ph.OKGREEN)
         ph.disp('Per Sample STD: STD: %.5f, Avg: %.5f' % (per_sample_var, per_sample_avg), ph.OKGREEN)
@@ -45,9 +45,9 @@ class DiscriminatoryFilter(object):
         # Sort with the highest values first.
         sample_variances = sorted(sample_variances, key = lambda x: -x[1])
         samples = [sample_variance[0] for sample_variance in sample_variances]
-        #samples = samples[0:selection_count]
-        self.selection_percent = int(self.selection_percent)
-        samples = samples[0:self.selection_percent]
+        samples = samples[0:selection_count]
+        #self.selection_percent = int(self.selection_percent)
+        #samples = samples[0:self.selection_percent]
 
         if (self.CUTOFF is not None) and selection_count > self.CUTOFF:
             ph.disp('-----Greater than the cutoff randomly sampling')
@@ -57,6 +57,21 @@ class DiscriminatoryFilter(object):
                 selected_samples.append(samples[select_index])
                 del samples[select_index]
             samples = selected_samples
+
+        return samples
+
+
+    def filter_samples(self, samples):
+        before_len = len(samples)
+
+        use_custom = True;
+
+        if use_custom:
+            samples = self.custom_filter(samples)
+        else:
+            ph.disp('Threshold variance of %.6f' % self.min_variance)
+            selector = VarianceThreshold(self.min_variance)
+            samples = selector.fit_transform(samples)
 
         after_len = len(samples)
         ph.disp(('-' * 5) + '%i reduced to %i' % (before_len, after_len))

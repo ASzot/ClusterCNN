@@ -226,7 +226,7 @@ class ModelWrapper(object):
     def create_model(self):
         # Break the data up into test and training set.
         # This will be set at 0.3 is test and 0.7 is training.
-        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3, 10000)
+        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3, 1000)
         self.all_train_x = train_data
         self.all_train_y =  train_labels
         self.all_test_x = test_data
