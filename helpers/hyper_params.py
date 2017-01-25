@@ -1,7 +1,7 @@
 class HyperParamData:
     def __init__(self, input_shape, subsample, patches_subsample, filter_size, batch_size,
             nkerns, fc_sizes, n_epochs, min_variances, selection_percentages, use_filters,
-            activation_func, extra_path, should_set_weights, should_eval, remaining):
+            activation_func, extra_path, should_set_weights, should_eval, remaining, cluster_count):
         self.input_shape           = input_shape
         self.subsample             = subsample
         self.patches_subsample     = patches_subsample
@@ -18,3 +18,4 @@ class HyperParamData:
         self.should_set_weights    = should_set_weights
         self.should_eval           = should_eval
         self.remaining             = remaining
+        self.cluster_count         = cluster_count

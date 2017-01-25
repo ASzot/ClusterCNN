@@ -160,6 +160,16 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     if filter_params is not None:
         cluster_vecs = filter_params.filter_samples(cluster_vecs)
 
+    #cluster_vecs = np.multiply(cluster_vecs, num_samples)
+    #with open('data/cluster1k.h5', 'a') as f:
+    #    per_sample_mean = [np.mean(cluster_vec) for cluster_vec in cluster_vecs]
+    #    all_date = [np.mean(cluster_vecs), np.std(cluster_vecs),
+    #            np.mean(per_sample_mean), np.std(per_sample_mean)]
+    #    formatted_disp = ["%.9f" % spec_data for spec_data in all_date]
+    #    format_disp = ','.join(formatted_disp)
+    #    f.write(format_disp)
+    #    f.write('\n')
+
     ph.disp('Beginning k - means')
     centroids = kmeans(cluster_vecs, k, batch_size)
 

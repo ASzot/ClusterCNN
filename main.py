@@ -30,7 +30,8 @@ def get_hyperparams():
         extra_path = '',
         should_set_weights = [True] * 5,
         should_eval = True,
-        remaining = 0)
+        remaining = 0,
+        cluster_count = 1000)
 
 
 def single_test():
