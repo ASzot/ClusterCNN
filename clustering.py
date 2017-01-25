@@ -1,4 +1,5 @@
 from sklearn.cluster import MiniBatchKMeans, KMeans
+from sklearn.decomposition import PCA
 import pickle
 import numpy as np
 import warnings
@@ -117,7 +118,6 @@ def load_centroids(filename):
             centroids.append(centroid)
     return np.array(centroids)
 
-g_layer_count = 0
 
 def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stride, filter_shape, k, convolute, filter_params):
     ph.disp('- Building centroids')
@@ -149,10 +149,10 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
     global g_layer_count
 
-
     ph.disp('Mean centering cluster vecs')
     #cluster_vec_mean = np.mean(cluster_vecs)
     #cluster_vecs = cluster_vecs - cluster_vec_mean
+
     cluster_vecs = preprocessing.scale(cluster_vecs)
     ph.disp('Cluster vecs centered')
 
@@ -162,12 +162,10 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     #ph.disp('Whitening data.')
     #cluster_vecs = whiten(cluster_vecs)
 
-
     if filter_params is not None:
         cluster_vecs = filter_params.filter_samples(cluster_vecs)
 
     #cluster_vecs = np.multiply(cluster_vecs, mul_fact[g_layer_count])
-
 
     per_sample_mean = [np.mean(cluster_vec) for cluster_vec in cluster_vecs]
     all_data = [np.mean(cluster_vecs), np.std(cluster_vecs),
@@ -175,8 +173,8 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     formatted_disp = ["%.9f" % spec_data for spec_data in all_data]
     format_disp = ','.join(formatted_disp)
 
-    print 'Layer cluster vec data'
-    print format_disp
+    #print 'Layer cluster vec data'
+    #print format_disp
 
     #with open('data/cluster1k.h5', 'a') as f:
     #    f.write(format_disp)
@@ -193,17 +191,16 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     centroids -= centroid_mean
     #centroids = preprocessing.scale(centroids)
 
+    mul_fact = [1, 1, 1, 1, 2]
 
-    mul_fact = [1000, 1000, 1000, 1000, 10000]
-    centroids = np.multiply(centroids, mul_fact[g_layer_count])
+    centroids = np.array(centroids)
 
     centroids = preprocessing.normalize(centroids, norm='l2')
 
     centroids = [centroid - np.mean(centroid) for centroid in centroids]
     centroids = np.array(centroids)
 
-
-    g_layer_count = g_layer_count + 1
+    #centroids = np.multiply(centroids, mul_fact[g_layer_count])
 
     return centroids
 

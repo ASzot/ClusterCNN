@@ -31,7 +31,7 @@ def get_hyperparams():
         should_set_weights = [True] * 5,
         should_eval = True,
         remaining = 0,
-        cluster_count = 20000)
+        cluster_count = 35000)
 
 
 def single_test():
@@ -106,6 +106,33 @@ def run(save = False):
             pickle.dump(param_result, f)
 
     print 'Saved to file!'
+
+def find_optimal():
+    hyperparams = get_hyperparams()
+    max_acc = 0.0
+    max_cluster_size = 1000
+    ph.DISP = False
+    global g_layer_count
+    for i in [34900, 34950]:
+        print 'testing %i' % (i)
+        g_layer_count = 0
+        hyperparams.extra_path = 'kmeans'
+        hyperparams.cluster_count = i
+        model = ModelWrapper(hyperparams, force_create=True)
+        model.create_model()
+        model.eval_performance()
+        model.test_model()
+        model.train_model()
+        model.test_model()
+
+        if max_acc < model.accuracy:
+            max_acc = model.accuracy
+            max_cluster_size = i
+
+        print model.accuracy
+
+    print max_acc
+    print max_cluster_size
 
 
 def test():
@@ -200,6 +227,7 @@ if __name__ == "__main__":
     #run(True)
     #load()
     #test()
-    single_test()
+    #single_test()
+    find_optimal()
     #load_accuracies()
 
