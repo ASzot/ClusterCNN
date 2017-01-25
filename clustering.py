@@ -188,16 +188,20 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     # Normalize each of the centroids.
     #for i, centroid in enumerate(centroids):
     #    centroids[i] = (centroid / np.linalg.norm(centroid))
-
-    centroids = preprocessing.normalize(centroids, norm='l2')
-
     ph.disp('Mean centering')
     centroid_mean = np.mean(centroids)
     centroids -= centroid_mean
+    #centroids = preprocessing.scale(centroids)
+
+
     mul_fact = [1000, 1000, 1000, 1000, 10000]
-    #centroids = [centroid - np.mean(centroid) for centroid in centroids]
-    #centroids = np.array(centroids)
     centroids = np.multiply(centroids, mul_fact[g_layer_count])
+
+    centroids = preprocessing.normalize(centroids, norm='l2')
+
+    centroids = [centroid - np.mean(centroid) for centroid in centroids]
+    centroids = np.array(centroids)
+
 
     g_layer_count = g_layer_count + 1
 

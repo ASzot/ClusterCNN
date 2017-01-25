@@ -203,7 +203,6 @@ class ModelWrapper(object):
                 compare_angles.append(angle)
             compare_angle_avg = np.mean(compare_angles)
             anchor_vec_spreads.append(compare_angle_avg)
-        print 'performing eval'
 
         anchor_vec_spread_avg = np.mean(np.mean(anchor_vec_spreads))
         anchor_vec_spread_std = np.std(np.std(anchor_vec_spreads))

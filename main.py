@@ -31,7 +31,7 @@ def get_hyperparams():
         should_set_weights = [True] * 5,
         should_eval = True,
         remaining = 0,
-        cluster_count = 2000)
+        cluster_count = 20000)
 
 
 def single_test():
