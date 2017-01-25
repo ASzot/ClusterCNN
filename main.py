@@ -31,7 +31,7 @@ def get_hyperparams():
         should_set_weights = [True] * 5,
         should_eval = True,
         remaining = 0,
-        cluster_count = 1000)
+        cluster_count = 2000)
 
 
 def single_test():
@@ -43,6 +43,7 @@ def single_test():
     model.test_model()
     model.train_model()
     model.test_model()
+    model.post_eval()
 
     #ph.linebreak()
     #ph.disp('Layer Bias Std', ph.OKBLUE)

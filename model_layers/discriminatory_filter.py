@@ -19,7 +19,7 @@ class DiscriminatoryFilter(object):
         per_sample_var = np.std(variances)
         per_sample_avg = np.mean(variances)
 
-        thresh_fact = 1.0
+        thresh_fact = 0.5
         self.min_variance = per_sample_avg + (thresh_fact * per_sample_var)
         self.min_variance = 0.0
 

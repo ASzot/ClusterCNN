@@ -162,14 +162,12 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     #ph.disp('Whitening data.')
     #cluster_vecs = whiten(cluster_vecs)
 
-    mul_fact = [1000, 1000, 1000, 1000, 10000]
 
     if filter_params is not None:
         cluster_vecs = filter_params.filter_samples(cluster_vecs)
 
-    cluster_vecs = np.multiply(cluster_vecs, mul_fact[g_layer_count])
+    #cluster_vecs = np.multiply(cluster_vecs, mul_fact[g_layer_count])
 
-    g_layer_count = g_layer_count + 1
 
     per_sample_mean = [np.mean(cluster_vec) for cluster_vec in cluster_vecs]
     all_data = [np.mean(cluster_vecs), np.std(cluster_vecs),
@@ -196,8 +194,12 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     ph.disp('Mean centering')
     centroid_mean = np.mean(centroids)
     centroids -= centroid_mean
+    mul_fact = [1000, 1000, 1000, 1000, 10000]
     #centroids = [centroid - np.mean(centroid) for centroid in centroids]
     #centroids = np.array(centroids)
+    centroids = np.multiply(centroids, mul_fact[g_layer_count])
+
+    g_layer_count = g_layer_count + 1
 
     return centroids
 
