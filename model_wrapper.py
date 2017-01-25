@@ -216,9 +216,10 @@ class ModelWrapper(object):
         self.layer_weight_stds.append(layer_std)
         self.layer_weight_avgs.append(layer_avg)
 
-    def full_create(self):
+    def full_create(self, should_eval=True):
         self.create_model()
-        self.eval_performance()
+        if should_eval:
+            self.eval_performance()
         self.train_model()
         self.test_model()
         return self.accuracy

@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from helpers.mathhelper import get_anchor_vectors
 import pickle
 import numpy as np
 from helpers.hyper_params import HyperParamData
@@ -28,7 +29,7 @@ def get_hyperparams():
         use_filters = (True, True, True, True, True),
         activation_func = 'relu',
         extra_path = '',
-        should_set_weights = [True] * 5,
+        should_set_weights = [False] * 5,
         should_eval = True,
         remaining = 0,
         cluster_count = 35000)
@@ -36,7 +37,7 @@ def get_hyperparams():
 
 def single_test():
     hyperparams = get_hyperparams()
-    hyperparams.extra_path = 'kmeans'
+    hyperparams.extra_path = 'reg'
     model = ModelWrapper(hyperparams, force_create=True)
     model.create_model()
     model.eval_performance()
@@ -138,9 +139,9 @@ def find_optimal():
 def test():
     hyperparams = get_hyperparams()
 
-    interval = 20
-    trails = 1
-    total = 700
+    interval = 1
+    trails = 3
+    total = 1000
     kmeans_accs = []
     reg_accs = []
 
@@ -160,34 +161,41 @@ def test():
         total_reg_acc = 0.0
 
         hyperparams.remaining = i
+        all_kmeans_anchor_vecs = []
+        all_reg_anchor_vecs = []
         for j in range(trails):
             hyperparams.should_set_weights = [True] * 5
             hyperparams.extra_path = 'kmeans'
             model = ModelWrapper(hyperparams, force_create=False)
-            total_kmeans_acc += model.full_create()
+            total_kmeans_acc += model.full_create(should_eval=True)
+            all_kmeans_anchor_vecs.append(get_anchor_vectors(model))
 
             hyperparams.should_set_weights = [False] * 5
             hyperparams.extra_path = 'reg'
             model = ModelWrapper(hyperparams, force_create=False)
-            total_reg_acc += model.full_create()
+            total_reg_acc += model.full_create(should_eval=False)
+            all_reg_anchor_vecs.append(get_anchor_vectors(model))
 
         kmeans_acc = total_kmeans_acc / float(trails)
         reg_acc = total_reg_acc / float(trails)
+
+        with open('data/av/kmeans%i.h5', 'w') as f:
+            pickle.dump([i, all_kmeans_anchor_vecs], f)
+        with open('data/av/reg%i.h5', 'w') as f:
+            pickle.dump([i, all_reg_anchor_vecs], f)
 
         print kmeans_acc
         print reg_acc
 
         kmeans_accs.append((i, kmeans_acc))
         reg_accs.append((i, reg_acc))
+        with open('data/kmeans_accuracies.h5', 'w') as f:
+            pickle.dump(kmeans_accs, f)
+
+        with open('data/reg_accuracies.h5', 'w') as f:
+            pickle.dump(reg_accs, f)
 
     ph.DISP = True
-
-    with open('data/kmeans_accuracies.h5', 'w') as f:
-        pickle.dump(kmeans_accs, f)
-
-    with open('data/reg_accuracies.h5', 'w') as f:
-        pickle.dump(reg_accs, f)
-
 
 
 def load_accuracies():
@@ -226,8 +234,8 @@ def load():
 if __name__ == "__main__":
     #run(True)
     #load()
-    #test()
+    test()
     #single_test()
-    find_optimal()
+    #find_optimal()
     #load_accuracies()
 
