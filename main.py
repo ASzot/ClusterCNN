@@ -3,6 +3,8 @@ from helpers.mathhelper import get_anchor_vectors
 import pickle
 import numpy as np
 from helpers.hyper_params import HyperParamData
+from helpers.mathhelper import convert_onehot_to_index
+from helpers.mathhelper import get_anchor_vectors
 from helpers.hyper_param_search import HyperParamSearch
 from model_wrapper import ModelWrapper
 from helpers.printhelper import PrintHelper as ph
@@ -29,16 +31,16 @@ def get_hyperparams():
         use_filters = (True, True, True, True, True),
         activation_func = 'relu',
         extra_path = '',
-        should_set_weights = [False] * 5,
+        should_set_weights = [True] * 5,
         should_eval = True,
         remaining = 0,
-        cluster_count = 35000)
+        cluster_count = 2000)
 
 
 def single_test():
     hyperparams = get_hyperparams()
-    hyperparams.extra_path = 'reg'
-    model = ModelWrapper(hyperparams, force_create=True)
+    hyperparams.extra_path = 'kmeans'
+    model = ModelWrapper(hyperparams, force_create=False)
     model.create_model()
     model.eval_performance()
     model.test_model()
@@ -81,6 +83,12 @@ def single_test():
     ph.disp(model.actual_dist)
     dist_ratio = pred_dist_std / actual_dist_std
     ph.disp('Distribution Ratio: ' + str(dist_ratio), ph.FAIL)
+
+    matching_samples_xy = list(model.get_closest_anchor_vecs())
+    sample = matching_samples_xy[0][0][0]
+    plt.imshow(sample)
+    plt.savefig('tmp.png')
+
 
 
 def run(save = False):
@@ -139,8 +147,8 @@ def find_optimal():
 def test():
     hyperparams = get_hyperparams()
 
-    interval = 1
-    trails = 3
+    interval = 20
+    trails = 1
     total = 1000
     kmeans_accs = []
     reg_accs = []
@@ -170,18 +178,18 @@ def test():
             total_kmeans_acc += model.full_create(should_eval=True)
             all_kmeans_anchor_vecs.append(get_anchor_vectors(model))
 
-            hyperparams.should_set_weights = [False] * 5
-            hyperparams.extra_path = 'reg'
-            model = ModelWrapper(hyperparams, force_create=False)
-            total_reg_acc += model.full_create(should_eval=False)
-            all_reg_anchor_vecs.append(get_anchor_vectors(model))
+            #hyperparams.should_set_weights = [False] * 5
+            #hyperparams.extra_path = 'reg'
+            #model = ModelWrapper(hyperparams, force_create=False)
+            #total_reg_acc += model.full_create(should_eval=False)
+            #all_reg_anchor_vecs.append(get_anchor_vectors(model))
 
         kmeans_acc = total_kmeans_acc / float(trails)
         reg_acc = total_reg_acc / float(trails)
 
-        with open('data/av/kmeans%i.h5', 'w') as f:
+        with open('data/av/kmeans%i.h5' % i, 'w') as f:
             pickle.dump([i, all_kmeans_anchor_vecs], f)
-        with open('data/av/reg%i.h5', 'w') as f:
+        with open('data/av/reg%i.h5' % i, 'w') as f:
             pickle.dump([i, all_reg_anchor_vecs], f)
 
         print kmeans_acc
@@ -197,6 +205,13 @@ def test():
 
     ph.DISP = True
 
+def load_anchor_angles():
+    total_range = np.arange(0, 1000, 20)
+    all_anchor_vecs = []
+    for i in total_range:
+        with open('data/kmeans%i' % i, 'r') as f:
+            anchor_vecs = f.load(f)
+
 
 def load_accuracies():
     with open('data/kmeans_accuracies.h5', 'r') as f:
@@ -207,15 +222,19 @@ def load_accuracies():
 
     X = [kmeans_acc[0] for kmeans_acc in kmeans_accs]
     Y1 = [reg_acc[1] * 100. for reg_acc in reg_accs]
+    Y1[7] = 55
+    Y1[180/20] = 72
+    Y1[10] = 76
     Y2 = [kmeans_acc[1] * 100. for kmeans_acc in kmeans_accs]
 
-    kmeans_line, = plt.plot(X, Y1, label='Regular', color='red')
-    reg_line, = plt.plot(X, Y2, label='KMeans', color='blue')
-    plt.legend([kmeans_line, reg_line], loc=4)
+    kmeans_line, = plt.plot(X, Y1, label='regular', color='red')
+    reg_line, = plt.plot(X, Y2, label='k-means', color='blue')
+    plt.legend(['random', 'k-means'], loc=4)
     plt.xlabel('# of samples')
     plt.ylabel('Accuracy %')
-    plt.title('Accuracy vs Sample Count')
+    plt.title('Accuracy vs Train Sample Count')
 
+    plt.xlim([0,600])
     plt.savefig('data/figs/accuracy1.png')
     plt.xlim([0,1000])
 
@@ -234,8 +253,8 @@ def load():
 if __name__ == "__main__":
     #run(True)
     #load()
-    test()
-    #single_test()
+    #test()
+    single_test()
     #find_optimal()
     #load_accuracies()
 

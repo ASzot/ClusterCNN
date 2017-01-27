@@ -157,6 +157,34 @@ class ModelWrapper(object):
             self.all_test_y = self.__remap_y(self.all_test_y)
 
 
+    def get_closest_anchor_vecs(self):
+        indicies_y = convert_onehot_to_index(self.all_train_y)
+
+        transformed_x = self.final_fc_out([self.all_train_x])[0]
+
+        test_xy = zip(transformed_x, indicies_y)
+
+        anchor_vecs = get_anchor_vectors(self)
+        final_fc_anchor_vecs = anchor_vecs[-1]
+
+        def get_closest_vec(search_vec, test_xy):
+            min_dist = 1000000.0
+            min_index = -1
+            for i, (test_x, test_y) in enumerate(test_xy):
+                dist = np.linalg.norm(test_x - search_vec)
+                if min_dist > dist:
+                    min_dist = dist
+                    min_index = i
+            if min_index == -1:
+                raise ValueError('No points in test_xy')
+
+            return i
+
+        for final_fc_anchor_vec in final_fc_anchor_vecs:
+            i = get_closest_vec(final_fc_anchor_vec, test_xy)
+            yield (self.all_train_x[i], indicies_y[i])
+
+
     def __remap_y(self, y_vals):
         # Remap the train_y and test_y values.
         indc_y_vals = convert_onehot_to_index(y_vals)
@@ -311,6 +339,8 @@ class ModelWrapper(object):
 
             input_shape = (fc_sizes[i],)
             ph.linebreak()
+
+        self.final_fc_out = K.function([model.layers[0].input], [model.layers[len(model.layers) - 2].output])
 
         model.add(Activation('softmax'))
 
