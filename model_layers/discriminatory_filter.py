@@ -1,5 +1,4 @@
 import numpy as np
-from sklearn.feature_selection import VarianceThreshold
 from helpers.printhelper import PrintHelper as ph
 
 class DiscriminatoryFilter(object):
@@ -64,14 +63,7 @@ class DiscriminatoryFilter(object):
     def filter_samples(self, samples):
         before_len = len(samples)
 
-        use_custom = True;
-
-        if use_custom:
-            samples = self.custom_filter(samples)
-        else:
-            ph.disp('Threshold variance of %.6f' % self.min_variance)
-            selector = VarianceThreshold(self.min_variance)
-            samples = selector.fit_transform(samples)
+        samples = self.custom_filter(samples)
 
         after_len = len(samples)
         ph.disp(('-' * 5) + '%i reduced to %i' % (before_len, after_len))

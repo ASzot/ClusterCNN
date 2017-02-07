@@ -1,13 +1,19 @@
+import matplotlib
+matplotlib.use('TkAgg')
+
 import matplotlib.pyplot as plt
 from helpers.mathhelper import get_anchor_vectors
 import pickle
 import numpy as np
+import random
 from helpers.hyper_params import HyperParamData
 from helpers.mathhelper import convert_onehot_to_index
 from helpers.mathhelper import get_anchor_vectors
 from helpers.hyper_param_search import HyperParamSearch
 from model_wrapper import ModelWrapper
 from helpers.printhelper import PrintHelper as ph
+from sklearn.manifold import TSNE
+from mpl_toolkits.mplot3d import Axes3D
 
 
 def get_hyperparams():
@@ -33,7 +39,7 @@ def get_hyperparams():
         extra_path = '',
         should_set_weights = [True] * 5,
         should_eval = True,
-        remaining = 0,
+        remaining = 200,
         cluster_count = 2000)
 
 
@@ -43,51 +49,83 @@ def single_test():
     model = ModelWrapper(hyperparams, force_create=False)
     model.create_model()
     model.eval_performance()
-    model.test_model()
     model.train_model()
     model.test_model()
     model.post_eval()
 
-    #ph.linebreak()
-    #ph.disp('Layer Bias Std', ph.OKBLUE)
-    #ph.disp(model.layer_bias_stds)
-    #ph.disp('Layer Bias Avg', ph.OKBLUE)
-    #ph.disp(model.layer_bias_avgs)
-
-    ph.linebreak()
-    ph.disp('Anchor Vec Spread Std: ', ph.OKBLUE)
-    ph.disp(model.anchor_vec_spreads_std)
-    ph.disp('Anchor Vec Spread Avg: ', ph.OKBLUE)
-    ph.disp(model.anchor_vec_spreads_avg)
-
-    ph.linebreak()
-    ph.disp('Layer Weight Stds: ', ph.OKBLUE)
-    ph.disp(model.layer_weight_stds)
-    ph.disp('Layer Weight Avgs: ', ph.OKBLUE)
-    ph.disp(model.layer_weight_avgs)
-
-    ph.linebreak()
-    ph.disp('Layer Mag Avg: ', ph.OKBLUE)
-    ph.disp(model.layer_anchor_mags_avg)
-    ph.disp('Layer Mag Std: ', ph.OKBLUE)
-    ph.disp(model.layer_anchor_mags_std)
-
-    ph.linebreak()
-    pred_dist_std = np.std(model.pred_dist)
-    actual_dist_std = np.std(model.actual_dist)
-    ph.disp('Model prediction distribution: ' + str(pred_dist_std), ph.FAIL)
-    ph.disp(model.pred_dist)
-    ph.disp('Model prediction map', ph.FAIL)
-    ph.disp(model.pred_to_actual)
-    ph.disp('Actual distribution: ' + str(actual_dist_std), ph.FAIL)
-    ph.disp(model.actual_dist)
-    dist_ratio = pred_dist_std / actual_dist_std
-    ph.disp('Distribution Ratio: ' + str(dist_ratio), ph.FAIL)
+    #model.disp_stats()
 
     matching_samples_xy = list(model.get_closest_anchor_vecs())
-    sample = matching_samples_xy[0][0][0]
-    plt.imshow(sample)
-    plt.savefig('tmp.png')
+
+
+    print 'Performing TSNE'
+    tsne_model = TSNE(n_components=3, verbose=1)
+    flattened_x = [np.array(train_x).flatten() for train_x in model.compare_x]
+    flattened_x = np.array(flattened_x)
+
+    all_data = []
+    all_data.extend(flattened_x)
+    all_data.extend(model.final_avs)
+
+    transformed_all_data = tsne_model.fit_transform(all_data)
+    vis_data = transformed_all_data[:-10]
+    plot_avs = transformed_all_data[-10:]
+    print len(vis_data)
+    print len(plot_avs)
+    print 'Done fitting data'
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    all_data = zip(vis_data, model.save_indices)
+
+    all_data = random.sample(all_data, 400)
+
+    print 'There are %i samples to plot' % len(vis_data)
+
+    colors = ['b', 'b', 'g', 'r', 'c', 'm', 'y', 'y', 'k', 'w']
+
+    for i,color in enumerate(colors):
+        matching_coords = [data_point[0] for data_point in all_data if
+                data_point[1] == i]
+        matching_x = [matching_coord[0] for matching_coord in matching_coords]
+        matching_y = [matching_coord[1] for matching_coord in matching_coords]
+        matching_z = [matching_coord[2] for matching_coord in matching_coords]
+        ax.scatter(matching_x, matching_y, matching_z,
+                    c=color, marker='o')
+
+        print 'Plotted all the %i s' % (i)
+
+    av_x = [av[0] for av in plot_avs]
+    av_y = [av[1] for av in plot_avs]
+    av_z = [av[2] for av in plot_avs]
+    print 'Plotting all anchor vectors'
+    for av in plot_avs:
+        t_vals = np.linspace(0, 1, 2)
+        av_x = av[0] * t_vals
+        av_y = av[1] * t_vals
+        av_z = av[2] * t_vals
+        ax.scatter(av_x, av_y, av_z, c='r', marker='^')
+    print 'Anchor vectors plotted'
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+
+    model.disp_output_stats()
+
+    for i, matching_sample_xy in enumerate(matching_samples_xy):
+        print 'AV: %i to %i ' % (i, matching_sample_xy[1])
+        #sample = matching_sample_xy[0][0]
+        #plt.imshow(sample, cmap='gray')
+        #plt.savefig('data/figs/anchor_vecs/%i.png' % i)
+        #plt.close()
+
+    plt.show()
+
+    #sample = matching_samples_xy[0][0][0]
+    #plt.imshow(sample)
+    #plt.savefig('tmp.png')
 
 
 

@@ -16,6 +16,7 @@ import numpy as np
 
 from sklearn.cross_validation import train_test_split
 from sklearn import datasets
+import sklearn.preprocessing as preprocessing
 
 import csv
 import pickle
@@ -157,28 +158,104 @@ class ModelWrapper(object):
             self.all_test_y = self.__remap_y(self.all_test_y)
 
 
+    def disp_stats(self):
+        ph.linebreak()
+        ph.disp('Layer Bias Std', ph.OKBLUE)
+        ph.disp(model.layer_bias_stds)
+        ph.disp('Layer Bias Avg', ph.OKBLUE)
+        ph.disp(model.layer_bias_avgs)
+
+        ph.linebreak()
+        ph.disp('Anchor Vec Spread Std: ', ph.OKBLUE)
+        ph.disp(model.anchor_vec_spreads_std)
+        ph.disp('Anchor Vec Spread Avg: ', ph.OKBLUE)
+        ph.disp(model.anchor_vec_spreads_avg)
+
+        ph.linebreak()
+        ph.disp('Layer Weight Stds: ', ph.OKBLUE)
+        ph.disp(model.layer_weight_stds)
+        ph.disp('Layer Weight Avgs: ', ph.OKBLUE)
+        ph.disp(model.layer_weight_avgs)
+
+        ph.linebreak()
+        ph.disp('Layer Mag Avg: ', ph.OKBLUE)
+        ph.disp(model.layer_anchor_mags_avg)
+        ph.disp('Layer Mag Std: ', ph.OKBLUE)
+        ph.disp(model.layer_anchor_mags_std)
+
+        ph.linebreak()
+        pred_dist_std = np.std(model.pred_dist)
+        actual_dist_std = np.std(model.actual_dist)
+        ph.disp('Model prediction distribution: ' + str(pred_dist_std), ph.FAIL)
+        ph.disp(model.pred_dist)
+        ph.disp('Model prediction map', ph.FAIL)
+        ph.disp(model.pred_to_actual)
+        ph.disp('Actual distribution: ' + str(actual_dist_std), ph.FAIL)
+        ph.disp(model.actual_dist)
+        dist_ratio = pred_dist_std / actual_dist_std
+        ph.disp('Distribution Ratio: ' + str(dist_ratio), ph.FAIL)
+
+
+    def disp_output_stats(self):
+        final_avs = get_anchor_vectors(self)[-1]
+
+        final_avs = [np.linalg.norm(final_av) for final_av in final_avs]
+
+        per_anchor_vec_avg = [np.mean(final_av) for final_av in final_avs]
+
+        print per_anchor_vec_avg
+
+
     def get_closest_anchor_vecs(self):
+        # Convert the one hot vectors to the actual numeric value.
         indicies_y = convert_onehot_to_index(self.all_train_y)
 
-        transformed_x = self.final_fc_out([self.all_train_x])[0]
+        self.save_indices = indicies_y
 
+        norm_all_train_x = [np.array(train_x).flatten() for train_x in
+                self.all_train_x]
+
+        norm_all_train_x = np.array(norm_all_train_x)
+
+        norm_all_train_x = preprocessing.normalize(norm_all_train_x, norm='l2')
+
+        train_shape = norm_all_train_x.shape
+        norm_all_train_x = norm_all_train_x.reshape(train_shape[0], 1, 28, 28)
+
+        # Pass each of the vectors through the network.
+        transformed_x = self.final_fc_out([norm_all_train_x])[0]
+        transformed_x = preprocessing.normalize(transformed_x, norm='l2')
+        self.compare_x = transformed_x
+
+        # Combine into a list containing
+        # (image passed through network, numeric value of image)
         test_xy = zip(transformed_x, indicies_y)
 
+        # Get the anchor vectors of the network.
         anchor_vecs = get_anchor_vectors(self)
+
+        # Get the anchor vectors of the final layer.
         final_fc_anchor_vecs = anchor_vecs[-1]
+
+        final_fc_anchor_vecs = preprocessing.normalize(final_fc_anchor_vecs,
+                norm='l2')
+
+        self.final_avs = final_fc_anchor_vecs
 
         def get_closest_vec(search_vec, test_xy):
             min_dist = 1000000.0
             min_index = -1
+
             for i, (test_x, test_y) in enumerate(test_xy):
                 dist = np.linalg.norm(test_x - search_vec)
                 if min_dist > dist:
                     min_dist = dist
                     min_index = i
+
             if min_index == -1:
                 raise ValueError('No points in test_xy')
 
-            return i
+            return min_index
 
         for final_fc_anchor_vec in final_fc_anchor_vecs:
             i = get_closest_vec(final_fc_anchor_vec, test_xy)
@@ -243,6 +320,7 @@ class ModelWrapper(object):
 
         self.layer_weight_stds.append(layer_std)
         self.layer_weight_avgs.append(layer_avg)
+
 
     def full_create(self, should_eval=True):
         self.create_model()
