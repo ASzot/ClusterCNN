@@ -23,10 +23,10 @@ class PrintHelper(object):
         if txt_type is not None:
             final_str += PrintHelper.ENDC
 
-        print final_str
+        print(final_str)
 
     @staticmethod
     def linebreak():
         if not PrintHelper.DISP:
             return
-        print '\n' * 2
+        print('\n' * 2)

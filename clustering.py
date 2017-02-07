@@ -9,7 +9,6 @@ from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.cluster import MiniBatchKMeans, KMeans
 from sklearn.metrics import pairwise
 import sklearn.preprocessing as preprocessing
-from clustering_cosine import custom_kmeans
 from scipy.cluster.vq import whiten
 import csv
 from helpers.printhelper import PrintHelper as ph
@@ -24,11 +23,7 @@ def kmeans(input_data, k, batch_size, metric='mbk'):
                 (len(input_data), k, batch_size), ph.FAIL)
         raise ValueError()
 
-    if (metric == 'cosine'):
-        ph.disp('Normalizing')
-        input_data = preprocessing.normalize(input_data, norm='l2')
-        return custom_kmeans(input_data, k, metric)
-    elif metric == 'km':
+    if metric == 'km':
         km = KMeans(n_clusters=k, n_init=30)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -103,7 +98,7 @@ def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
 
 def save_centroids(centroids, filename):
     ph.disp('Saving to file...')
-    with open(filename, 'wb') as f:
+    with open(filename, 'w') as f:
         writer = csv.writer(f)
         for centroid in centroids:
             writer.writerow(centroid)
@@ -112,7 +107,7 @@ def save_centroids(centroids, filename):
 def load_centroids(filename):
     ph.disp('Attempting to load cluster data...')
     centroids = []
-    with open(filename, 'rb') as f:
+    with open(filename, 'r') as f:
         reader = csv.reader(f)
         for centroid in reader:
             centroids.append(centroid)

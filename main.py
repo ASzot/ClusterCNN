@@ -1,5 +1,5 @@
-import matplotlib
-matplotlib.use('TkAgg')
+#import matplotlib
+#matplotlib.use('TkAgg')
 
 import matplotlib.pyplot as plt
 from helpers.mathhelper import get_anchor_vectors
@@ -13,6 +13,7 @@ from helpers.hyper_param_search import HyperParamSearch
 from model_wrapper import ModelWrapper
 from helpers.printhelper import PrintHelper as ph
 from sklearn.manifold import TSNE
+import sklearn.preprocessing as preprocessing
 from mpl_toolkits.mplot3d import Axes3D
 
 
@@ -58,8 +59,9 @@ def single_test():
     matching_samples_xy = list(model.get_closest_anchor_vecs())
 
 
-    print 'Performing TSNE'
-    tsne_model = TSNE(n_components=3, verbose=1)
+    ph.disp('Performing TSNE')
+    dims = 3
+    tsne_model = TSNE(n_components=dims, verbose=1)
     flattened_x = [np.array(train_x).flatten() for train_x in model.compare_x]
     flattened_x = np.array(flattened_x)
 
@@ -67,55 +69,96 @@ def single_test():
     all_data.extend(flattened_x)
     all_data.extend(model.final_avs)
 
-    transformed_all_data = tsne_model.fit_transform(all_data)
+    try:
+        raise IOError()
+        with open('data/vis_data/tsne.h5', 'rb') as f:
+            transformed_all_data = pickle.load(f)
+    except IOError:
+        transformed_all_data = tsne_model.fit_transform(all_data)
+        with open('data/vis_data/tsne.h5', 'wb') as f:
+            pickle.dump(transformed_all_data, f)
+
+    transformed_all_data = preprocessing.normalize(transformed_all_data, norm='l2')
+
     vis_data = transformed_all_data[:-10]
     plot_avs = transformed_all_data[-10:]
-    print len(vis_data)
-    print len(plot_avs)
-    print 'Done fitting data'
 
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+    ph.disp(len(vis_data))
+    ph.disp(len(plot_avs))
+    ph.disp('Done fitting data')
+
+    if dims == 3:
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
 
     all_data = zip(vis_data, model.save_indices)
 
-    all_data = random.sample(all_data, 400)
+    all_data = random.sample(all_data, 500)
 
-    print 'There are %i samples to plot' % len(vis_data)
+    ph.disp('There are %i samples to plot' % len(vis_data))
 
-    colors = ['b', 'b', 'g', 'r', 'c', 'm', 'y', 'y', 'k', 'w']
 
-    for i,color in enumerate(colors):
+    # 0 - red
+    # 1 - blue
+    # 2 - green
+    # 3 - yellow
+    # 4 - brown
+    # 5 - black
+    # 6 - cyan
+    # 7 - orange
+    # 8 - pink
+    # 9 - white
+    colors = ['red', 'blue', 'green', 'yellow', 'SaddleBrown', 'black',
+            'MediumTurquoise', 'OrangeRed', 'Violet', 'white']
+
+    for i, color in enumerate(colors):
         matching_coords = [data_point[0] for data_point in all_data if
                 data_point[1] == i]
         matching_x = [matching_coord[0] for matching_coord in matching_coords]
         matching_y = [matching_coord[1] for matching_coord in matching_coords]
-        matching_z = [matching_coord[2] for matching_coord in matching_coords]
-        ax.scatter(matching_x, matching_y, matching_z,
-                    c=color, marker='o')
 
-        print 'Plotted all the %i s' % (i)
+        if dims == 3:
+            matching_z = [matching_coord[2] for matching_coord in matching_coords]
+            ax.scatter(matching_x, matching_y, matching_z,
+                        c=color, marker='o')
+        elif dims == 2:
+            plt.scatter(matching_x, matching_y, c=color, marker='o')
+        else:
+            raise ValueError('Invalid number of dimensions')
 
-    av_x = [av[0] for av in plot_avs]
-    av_y = [av[1] for av in plot_avs]
-    av_z = [av[2] for av in plot_avs]
-    print 'Plotting all anchor vectors'
+        ph.disp('Plotted all the %i s' % (i))
+
+    ph.disp('Plotting all anchor vectors')
+
+    cur_index = 0
     for av in plot_avs:
         t_vals = np.linspace(0, 1, 2)
         av_x = av[0] * t_vals
         av_y = av[1] * t_vals
-        av_z = av[2] * t_vals
-        ax.scatter(av_x, av_y, av_z, c='r', marker='^')
-    print 'Anchor vectors plotted'
+        use_color = colors[cur_index]
 
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
+        if dims == 3:
+            av_z = av[2] * t_vals
+            ax.plot(av_x, av_y, av_z, linewidth=2.0, color = use_color,
+                    label='AV %i' % cur_index)
+        elif dims == 2:
+            plt.plot(av_x, av_y, linewidth=2.0, color=use_color)
+        else:
+            raise ValueError('Invalid number of dimensions')
+        cur_index += 1
+
+    ph.disp('Anchor vectors plotted')
+
+    if dims == 3:
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
 
     model.disp_output_stats()
 
     for i, matching_sample_xy in enumerate(matching_samples_xy):
-        print 'AV: %i to %i ' % (i, matching_sample_xy[1])
+        ph.disp('AV: %i to %i ' % (i, matching_sample_xy[1]))
+
         #sample = matching_sample_xy[0][0]
         #plt.imshow(sample, cmap='gray')
         #plt.savefig('data/figs/anchor_vecs/%i.png' % i)
@@ -146,13 +189,13 @@ def run(save = False):
             })
 
     param_result = param_search.search()
-    print param_search.get_max_point()
+    ph.disp(param_search.get_max_point())
 
     if save:
         with open('data/hyperparam_search.h5', 'w') as f:
             pickle.dump(param_result, f)
 
-    print 'Saved to file!'
+    ph.disp('Saved to file!')
 
 def find_optimal():
     hyperparams = get_hyperparams()
@@ -161,7 +204,10 @@ def find_optimal():
     ph.DISP = False
     global g_layer_count
     for i in [34900, 34950]:
-        print 'testing %i' % (i)
+        ph.DISP = True
+        ph.disp('testing %i' % (i))
+        ph.DISP = False
+
         g_layer_count = 0
         hyperparams.extra_path = 'kmeans'
         hyperparams.cluster_count = i
@@ -176,10 +222,10 @@ def find_optimal():
             max_acc = model.accuracy
             max_cluster_size = i
 
-        print model.accuracy
+        ph.disp(model.accuracy)
 
-    print max_acc
-    print max_cluster_size
+    ph.disp(max_acc)
+    ph.disp(max_cluster_size)
 
 
 def test():
@@ -196,13 +242,17 @@ def test():
     #total_range = np.concatenate([np.arange(0, total, interval), np.arange(800, 5000, 100)])
     total_range = np.arange(0, total, interval)
 
-    print 'Trying for %i train sizes' % (len(total_range))
+    ph.disp('Trying for %i train sizes' % (len(total_range)))
 
     for i in total_range:
         percentage = float(i) / float(total)
-        print ''
-        print '%.2f%%, %i' % (percentage * 100., i)
-        print ''
+
+        ph.DISP = True
+        ph.linebreak()
+        ph.disp('%.2f%%, %i' % (percentage * 100., i))
+        ph.linebreak()
+        ph.DISP = False
+
         total_kmeans_acc = 0.0
         total_reg_acc = 0.0
 
@@ -230,8 +280,10 @@ def test():
         with open('data/av/reg%i.h5' % i, 'w') as f:
             pickle.dump([i, all_reg_anchor_vecs], f)
 
-        print kmeans_acc
-        print reg_acc
+        ph.DISP = True
+        ph.disp(kmeans_acc)
+        ph.disp(reg_acc)
+        ph.DISP = False
 
         kmeans_accs.append((i, kmeans_acc))
         reg_accs.append((i, reg_acc))
@@ -283,10 +335,14 @@ def load():
     with open('data/hyperparam_search.h5', 'r') as f:
         param_result = pickle.load(f)
 
-    param_search = HyperParamSearch(hyper_params_range = { 'selection_percentages_0': [], 'min_variances_0': []}, points = param_result)
+    param_search = HyperParamSearch(hyper_params_range = {
+            'selection_percentages_0': [],
+            'min_variances_0': []
+        },
+        points = param_result)
     param_search.show_graph()
 
-    print param_search.get_max_point()
+    ph.disp(param_search.get_max_point())
 
 if __name__ == "__main__":
     #run(True)

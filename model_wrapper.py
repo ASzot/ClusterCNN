@@ -128,7 +128,7 @@ class ModelWrapper(object):
                 self.pred_to_actual[top_pred] = top_actual
 
         if len(self.actual_to_pred) != 10:
-            not_existing_pred_entries = range(10)
+            not_existing_pred_entries = list(range(10))
             for actual in self.actual_to_pred:
                 pred = self.actual_to_pred[actual]
                 if pred in not_existing_pred_entries:
@@ -203,7 +203,7 @@ class ModelWrapper(object):
 
         per_anchor_vec_avg = [np.mean(final_av) for final_av in final_avs]
 
-        print per_anchor_vec_avg
+        ph.disp(per_anchor_vec_avg)
 
 
     def get_closest_anchor_vecs(self):
@@ -229,7 +229,7 @@ class ModelWrapper(object):
 
         # Combine into a list containing
         # (image passed through network, numeric value of image)
-        test_xy = zip(transformed_x, indicies_y)
+        test_xy = list(zip(transformed_x, indicies_y))
 
         # Get the anchor vectors of the network.
         anchor_vecs = get_anchor_vectors(self)
@@ -253,7 +253,8 @@ class ModelWrapper(object):
                     min_index = i
 
             if min_index == -1:
-                raise ValueError('No points in test_xy')
+                raise ValueError(('No points in test_xy. There are %i points '
+                                ' in test_xy') % (len(list(test_xy))))
 
             return min_index
 

@@ -38,7 +38,7 @@ def get_layer_anchor_vectors(layer_data):
             anchor_vecs.append(conv_filter)
         return anchor_vecs
     else:
-        print sp[0]
+        print(sp[0])
         return layer_data
 
 def get_biases(model0):

@@ -48,7 +48,7 @@ class HyperParamSearch:
             total *= len(self.hyper_params_range[key])
 
         fraction = float(len(self.points)) / float(total)
-        print '%.2f%%' % (fraction * 100.)
+        print('%.2f%%' % (fraction * 100.))
 
 
     def __recur_search(self, cur_index, all_param_names, assigned={}):
@@ -137,6 +137,6 @@ class HyperParamSearch:
         try:
             return getattr(self.model, self.eval_func_name)
         except AttributeError:
-            print 'Could not find evaluation function'
+            print('Could not find evaluation function')
             return None
 
