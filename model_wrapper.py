@@ -33,42 +33,275 @@ import matplotlib.pyplot as plt
 
 
 class ModelWrapper(object):
+    """
+    Encapsulates all of the behavior of the full network.
+    Intended to make analyzing and creating the network to be easy.
+    """
+
     def __init__(self, hyperparams, force_create):
+        """
+        Constructor
+
+        :param force_create: If true nothing will be loaded from memory.
+        Everything will be created even if it already exists.
+        """
         self.hyperparams        = hyperparams
         self.force_create       = force_create
         self.model              = None
         self.accuracy           = None
 
 
-    def set_hyperparams(self, hyperparams):
-        self.hyperparams = hyperparams
+
+    def full_create(self, should_eval=True):
+        """
+        Shortcut for creating the model remapping the y vals
+        and then training and evaluating the model.
+        """
+        self.create_model()
+        if should_eval:
+            self.eval_performance()
+        self.train_model()
+        self.test_model()
+        return self.accuracy
 
 
-    def set_hyperparam(self, hyperparam_name, hyperparam_value):
-        if hyperparam_name.startswith('min_variances_') or hyperparam_name.startswith('selection_percentages_'):
-            name_parts = hyperparam_name.split('_')
+    def create_model(self):
+        """
+        This method is where most of the heavy lifting will happen.
+        This method will add the layers to the model and progressively
+        compute and set the anchor vector for every single layer.
+        """
 
-            if len(name_parts) != 3:
-                raise ValueError('Invalid hyper param name')
+        # Break the data up into test and training set.
+        # This will be set at 0.3 is test and 0.7 is training.
+        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3,
+                self.hyperparams.cluster_count)
 
-            if isinstance(name_parts[2], int):
-                raise ValueError('Invalid index supplied to hyper param name')
+        self.all_train_x = train_data
+        self.all_train_y =  train_labels
+        self.all_test_x = test_data
+        self.all_test_y = test_labels
 
-            attr_name = name_parts[0] + '_' + name_parts[1]
-            attr_value = getattr(self.hyperparams, attr_name)
-            attr_index = int(name_parts[2])
+        # Set all of the hyperparameters to be used.
+        input_shape           = self.hyperparams.input_shape
+        subsample             = self.hyperparams.subsample
+        patches_subsample     = self.hyperparams.patches_subsample
+        filter_size           = self.hyperparams.filter_size
+        batch_size            = self.hyperparams.batch_size
+        nkerns                = self.hyperparams.nkerns
+        fc_sizes              = self.hyperparams.fc_sizes
+        force_create          = self.force_create
+        n_epochs              = self.hyperparams.n_epochs
+        selection_percentages = self.hyperparams.selection_percentages
+        use_filters           = self.hyperparams.use_filters
+        should_set_weights    = self.hyperparams.should_set_weights
+        should_eval           = self.hyperparams.should_eval
+        extra_path            = self.hyperparams.extra_path
 
-            attr_value[attr_index] = hyperparam_value
-            self.set_hyperparam(attr_name, attr_value)
+        kmeans_handler = KMeansHandler(should_set_weights, force_create, batch_size,
+                patches_subsample, filter_size, train_data, DiscriminatoryFilter())
+
+        kmeans_handler.set_filepaths(extra_path)
+
+        # The Keras model builder.
+        model = Sequential()
+
+        f_conv_out = None
+
+        self.__clear_layer_stats()
+
+        # Create the convolution layers.
+        for i in range(len(nkerns)):
+            if not use_filters[i]:
+                kmeans_handler.set_filter_params(None, None)
+            else:
+                kmeans_handler.set_filter_params(selection_percentages[i])
+
+            output_shape = (nkerns[i], input_shape[0], filter_size[0], filter_size[1])
+            assert_shape = (nkerns[i], input_shape[0] * filter_size[0] * filter_size[1])
+            centroid_weights = kmeans_handler.handle_kmeans(i, 'c' + str(i), nkerns[i], input_shape, output_shape,
+                                    f_conv_out, True, assert_shape = assert_shape)
+
+            if should_set_weights[i]:
+                ph.disp('Setting layer weights.')
+
+            is_last = (i == len(nkerns) - 1)
+            f_conv_out = self.__add_convlayer(model, nkerns[i], subsample, filter_size,
+                            input_shape = input_shape, weights = centroid_weights,
+                            flatten=is_last)
+
+            # Pass inputs through see what output is.
+            tmp_data = np.empty(input_shape)
+            tmp_out = f_conv_out([[tmp_data]])[0]
+            input_shape = tmp_out.shape[1:]
+            ph.linebreak()
+
+        f_fc_out = f_conv_out
+
+        # Create the FC layers.
+        for i in range(len(fc_sizes)):
+            offset_index = i + len(nkerns)
+            if not use_filters[offset_index]:
+                kmeans_handler.set_filter_params(None, None)
+            else:
+                kmeans_handler.set_filter_params(selection_percentages[offset_index])
+
+            output_shape = (np.array(input_shape).prod(), fc_sizes[i])
+            assert_shape = (fc_sizes[i], np.array(input_shape).prod())
+            centroid_weights = kmeans_handler.handle_kmeans(offset_index, 'f' + str(i), fc_sizes[i],
+                    input_shape, output_shape, f_fc_out, False, assert_shape = assert_shape)
+
+            if should_set_weights[offset_index]:
+                ph.disp('Setting layer weights')
+
+            if i == len(fc_sizes) - 1:
+                self.__add_dense_layer(model, fc_sizes[i], weights = centroid_weights)
+            else:
+                f_fc_out = self.__add_fclayer(model, fc_sizes[i], weights = centroid_weights)
+
+            input_shape = (fc_sizes[i],)
+            ph.linebreak()
+
+        self.final_fc_out = K.function([model.layers[0].input], [model.layers[len(model.layers) - 2].output])
+
+        model.add(Activation('softmax'))
+
+        ph.disp('Compiling model')
+
+        opt = SGD(lr=0.01)
+        model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+        ph.disp('Model is compiled')
+
+        self.model    = model
+
+
+    def train_model(self):
+        """
+        Train the model the number of samples specified by
+        the 'remaining' hyperparameter.
+        """
+        # Only use a given amount of the training data.
+        scaled_train_data = self.all_train_x[0:self.hyperparams.remaining]
+        scaled_train_labels = self.all_train_y[0:self.hyperparams.remaining]
+
+        if len(scaled_train_data) > 0:
+            self.model.fit(scaled_train_data, scaled_train_labels, batch_size=self.hyperparams.batch_size,
+                    nb_epoch=self.hyperparams.n_epochs, verbose=ph.DISP)
+
+        # If you want to be sure the bias is not having a part in here.
+        # (it doesn't look like it is)
+        #unset_bias(self.model)
+
+
+    def test_model(self):
+        """
+        Test and print the accuracy of the model.
+        """
+        batch_size            = self.hyperparams.batch_size
+        # Just use 1,000 test samples for now.
+        self.all_test_x = self.all_test_x[0:1000]
+        self.all_test_y = self.all_test_y[0:1000]
+        (loss, accuracy) = self.model.evaluate(self.all_test_x, self.all_test_y,
+                batch_size=batch_size, verbose=ph.DISP)
+
+        ph.linebreak()
+        ph.disp('Accuracy %.9f%%' % (accuracy * 100.), ph.BOLD)
+        ph.disp('-' * 50, ph.OKGREEN)
+        ph.linebreak()
+
+        self.accuracy = accuracy
+
+
+    def __add_convlayer(self, model, nkern, subsample, filter_size, flatten=False, input_shape=None,
+            weights=None, activation_func='relu'):
+        """
+        Helper method to add a convolution layer.
+        """
+        if input_shape is not None:
+            conv_layer = Convolution2D(nkern, filter_size[0], filter_size[1], border_mode='same',
+                    subsample=subsample, input_shape=input_shape)
         else:
-            setattr(self.hyperparams, hyperparam_name, hyperparam_value)
+            conv_layer = Convolution2D(nkern, filter_size[0], filter_size[1], border_mode='same',
+                    subsample=subsample)
+
+        model.add(conv_layer)
+
+        if not weights is None:
+            bias = conv_layer.get_weights()[1]
+
+            conv_layer.set_weights([weights, bias])
+
+        max_pooling_out = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))
+        activation_layer = Activation(activation_func)
+
+        model.add(max_pooling_out)
+        model.add(activation_layer)
+
+        if flatten:
+            ph.disp('Flattening output')
+            flatten_layer = Flatten()
+            model.add(flatten_layer)
+            output = flatten_layer.output
+        else:
+            output = max_pooling_out.output
+
+        # The function is the output of the conv / pooling layers.
+        convout_f = K.function([conv_layer.input], [output])
+        return convout_f
+
+
+    def __add_dense_layer(self, model, output_dim, weights = None):
+        """
+        Helper function to add a Dense layer
+        """
+        dense_layer = Dense(output_dim)
+
+        model.add(dense_layer)
+
+        if not weights is None:
+            bias = dense_layer.get_weights()[1]
+            dense_layer.set_weights([weights, bias])
+
+
+    def __add_fclayer(self, model, output_dim, weights=None, activation_func='relu'):
+        """
+        Helper method to add on a FC layer to the model.
+
+        :returns: The function that passes an input through the FC layer.
+        """
+        dense_layer = Dense(output_dim)
+
+        model.add(dense_layer)
+
+        if not weights is None:
+            bias = dense_layer.get_weights()[1]
+            dense_layer.set_weights([weights, bias])
+
+        fcOutLayer = Activation(activation_func)
+        model.add(fcOutLayer)
+        fcOut_f = K.function([dense_layer.input], [fcOutLayer.output])
+        return fcOut_f
 
 
     def eval_performance(self):
+        """
+        For unsupervised learning the model will not know which cluster corresponds to
+        which number. This is fine in practice but for testing purposes it would be nice
+        to use the same evaluation metric to determine the accuracy. Therefore, each of the
+        predicted classes will be mapped to an actual class. For instance the after unsupervised
+        learning the model might assign the image of a number 2 the label 6. This would be classified
+        as a mislabel but in reality the unsupervised system has no knowledge of the underlying
+        properties of the labels. This will remap the labels accordingly to give the best accuracy.
+        For now this done with a majority voting system.
+
+        :returns: Nothing
+        """
+
         all_train_data = zip(self.all_train_x, self.all_train_y)
         all_pred_y = self.model.predict(self.all_train_x)
 
         one_hot_pred = []
+        # Extract the maximum prediction
         for i in range(len(all_pred_y)):
             pred_y = all_pred_y[i]
             max_index = 0
@@ -106,8 +339,6 @@ class ModelWrapper(object):
 
             cluster_freq = sorted(cluster_freq.items(), key=operator.itemgetter(1), reverse=True)
             all_cluster_freq.append(cluster_freq)
-        #for pred, cluster_freq in enumerate(all_cluster_freq):
-        #    print str(pred) + ':' + str(cluster_freq)
 
         accum_freq = []
         for pred, cluster in enumerate(all_cluster_freq):
@@ -143,9 +374,6 @@ class ModelWrapper(object):
                     self.actual_to_pred[i] = not_existing_entry
                     self.pred_to_actual[not_existing_entry] = i
 
-        #for pred in self.pred_to_actual:
-        #    print str(pred) + '->' + str(self.pred_to_actual[pred])
-
         pred_counts = np.array(pred_counts)
         actual_counts = np.array(actual_counts)
 
@@ -158,55 +386,25 @@ class ModelWrapper(object):
             self.all_test_y = self.__remap_y(self.all_test_y)
 
 
-    def disp_stats(self):
-        ph.linebreak()
-        ph.disp('Layer Bias Std', ph.OKBLUE)
-        ph.disp(model.layer_bias_stds)
-        ph.disp('Layer Bias Avg', ph.OKBLUE)
-        ph.disp(model.layer_bias_avgs)
+    def __remap_y(self, y_vals):
+        """
+        Remap the train_y and test_y values.
+        """
+        indc_y_vals = convert_onehot_to_index(y_vals)
+        mapped_inc_y_vals = [self.actual_to_pred[y_val] for y_val in indc_y_vals]
 
-        ph.linebreak()
-        ph.disp('Anchor Vec Spread Std: ', ph.OKBLUE)
-        ph.disp(model.anchor_vec_spreads_std)
-        ph.disp('Anchor Vec Spread Avg: ', ph.OKBLUE)
-        ph.disp(model.anchor_vec_spreads_avg)
-
-        ph.linebreak()
-        ph.disp('Layer Weight Stds: ', ph.OKBLUE)
-        ph.disp(model.layer_weight_stds)
-        ph.disp('Layer Weight Avgs: ', ph.OKBLUE)
-        ph.disp(model.layer_weight_avgs)
-
-        ph.linebreak()
-        ph.disp('Layer Mag Avg: ', ph.OKBLUE)
-        ph.disp(model.layer_anchor_mags_avg)
-        ph.disp('Layer Mag Std: ', ph.OKBLUE)
-        ph.disp(model.layer_anchor_mags_std)
-
-        ph.linebreak()
-        pred_dist_std = np.std(model.pred_dist)
-        actual_dist_std = np.std(model.actual_dist)
-        ph.disp('Model prediction distribution: ' + str(pred_dist_std), ph.FAIL)
-        ph.disp(model.pred_dist)
-        ph.disp('Model prediction map', ph.FAIL)
-        ph.disp(model.pred_to_actual)
-        ph.disp('Actual distribution: ' + str(actual_dist_std), ph.FAIL)
-        ph.disp(model.actual_dist)
-        dist_ratio = pred_dist_std / actual_dist_std
-        ph.disp('Distribution Ratio: ' + str(dist_ratio), ph.FAIL)
-
-
-    def disp_output_stats(self):
-        final_avs = get_anchor_vectors(self)[-1]
-
-        final_avs = [np.linalg.norm(final_av) for final_av in final_avs]
-
-        per_anchor_vec_avg = [np.mean(final_av) for final_av in final_avs]
-
-        ph.disp(per_anchor_vec_avg)
+        return np.array(list(convert_index_to_onehot(mapped_inc_y_vals, 10)))
 
 
     def get_closest_anchor_vecs(self):
+        """
+        Get the closest sample to each anchor vector.
+        Return the closest sample and the number it corresponds to.
+
+        :returns: A generator producing the sample closest to anchor vector i
+        and the value the sample corresponds to.
+        """
+
         # Convert the one hot vectors to the actual numeric value.
         indicies_y = convert_onehot_to_index(self.all_train_y)
 
@@ -263,12 +461,28 @@ class ModelWrapper(object):
             yield (self.all_train_x[i], indicies_y[i])
 
 
-    def __remap_y(self, y_vals):
-        # Remap the train_y and test_y values.
-        indc_y_vals = convert_onehot_to_index(y_vals)
-        mapped_inc_y_vals = [self.actual_to_pred[y_val] for y_val in indc_y_vals]
 
-        return np.array(list(convert_index_to_onehot(mapped_inc_y_vals, 10)))
+    def __fetch_data(self, test_size, use_amount=None):
+        """
+        Get the data and select the correct amount of it.
+        """
+        dataset = datasets.fetch_mldata('MNIST Original')
+        data = dataset.data.reshape((dataset.data.shape[0], 28, 28))
+        data = data[:, np.newaxis, :, :]
+
+        # Seed the random state in the data split.
+        (train_data, test_data, train_labels, test_labels) = train_test_split(data / 255.0, dataset.target.astype('int'), test_size=test_size, random_state=42)
+
+        train_labels = np_utils.to_categorical(train_labels, 10)
+        test_labels = np_utils.to_categorical(test_labels, 10)
+
+        if use_amount is not None:
+            train_data = np.array(train_data[0:use_amount])
+            train_labels = np.array(train_labels[0:use_amount])
+            test_data = np.array(test_data[0:use_amount])
+            test_labels = np.array(test_labels[0:use_amount])
+
+        return (train_data, test_data, train_labels, test_labels)
 
 
     def __clear_layer_stats(self):
@@ -323,257 +537,30 @@ class ModelWrapper(object):
         self.layer_weight_avgs.append(layer_avg)
 
 
-    def full_create(self, should_eval=True):
-        self.create_model()
-        if should_eval:
-            self.eval_performance()
-        self.train_model()
-        self.test_model()
-        return self.accuracy
-
-    def create_model(self):
-        # Break the data up into test and training set.
-        # This will be set at 0.3 is test and 0.7 is training.
-        (train_data, test_data, train_labels, test_labels) = self.__fetch_data(0.3,
-                self.hyperparams.cluster_count)
-        self.all_train_x = train_data
-        self.all_train_y =  train_labels
-        self.all_test_x = test_data
-        self.all_test_y = test_labels
-
-        input_shape           = self.hyperparams.input_shape
-        subsample             = self.hyperparams.subsample
-        patches_subsample     = self.hyperparams.patches_subsample
-        filter_size           = self.hyperparams.filter_size
-        batch_size            = self.hyperparams.batch_size
-        nkerns                = self.hyperparams.nkerns
-        fc_sizes              = self.hyperparams.fc_sizes
-        force_create          = self.force_create
-        n_epochs              = self.hyperparams.n_epochs
-        min_variances         = self.hyperparams.min_variances
-        selection_percentages = self.hyperparams.selection_percentages
-        use_filters           = self.hyperparams.use_filters
-        should_set_weights    = self.hyperparams.should_set_weights
-        should_eval           = self.hyperparams.should_eval
-        extra_path            = self.hyperparams.extra_path
-
-        kmeans_handler = KMeansHandler(should_set_weights, force_create, batch_size, patches_subsample, filter_size,
-                train_data, DiscriminatoryFilter())
-        kmeans_handler.set_filepaths(extra_path)
-
-        model = Sequential()
-
-        f_conv_out = None
-
-        self.__clear_layer_stats()
-
-        # Create the convolution layers.
-        for i in range(len(nkerns)):
-            if not use_filters[i]:
-                kmeans_handler.set_filter_params(None, None)
-            else:
-                kmeans_handler.set_filter_params(min_variances[i], selection_percentages[i])
-
-            output_shape = (nkerns[i], input_shape[0], filter_size[0], filter_size[1])
-            assert_shape = (nkerns[i], input_shape[0] * filter_size[0] * filter_size[1])
-            centroid_weights = kmeans_handler.handle_kmeans(i, 'c' + str(i), nkerns[i], input_shape, output_shape,
-                                    f_conv_out, True, assert_shape = assert_shape)
-
-            if should_set_weights[i]:
-                ph.disp('Setting layer weights.')
-
-            is_last = (i == len(nkerns) - 1)
-            f_conv_out = self.__add_convlayer(model, nkerns[i], subsample, filter_size,
-                            input_shape = input_shape, weights = centroid_weights,
-                            flatten=is_last)
-
-            # Pass inputs through see what output is.
-            tmp_data = np.empty(input_shape)
-            tmp_out = f_conv_out([[tmp_data]])[0]
-            input_shape = tmp_out.shape[1:]
-            ph.linebreak()
-
-        f_fc_out = f_conv_out
-
-        # Create the FC layers.
-        for i in range(len(fc_sizes)):
-            offset_index = i + len(nkerns)
-            if not use_filters[offset_index]:
-                kmeans_handler.set_filter_params(None, None)
-            else:
-                kmeans_handler.set_filter_params(min_variances[offset_index], selection_percentages[offset_index])
-
-            output_shape = (np.array(input_shape).prod(), fc_sizes[i])
-            assert_shape = (fc_sizes[i], np.array(input_shape).prod())
-            centroid_weights = kmeans_handler.handle_kmeans(offset_index, 'f' + str(i), fc_sizes[i],
-                    input_shape, output_shape, f_fc_out, False, assert_shape = assert_shape)
-
-            if should_set_weights[offset_index]:
-                ph.disp('Setting layer weights')
-
-            if i == len(fc_sizes) - 1:
-                self.__add_dense_layer(model, fc_sizes[i], weights = centroid_weights)
-            else:
-                f_fc_out = self.__add_fclayer(model, fc_sizes[i], weights = centroid_weights)
-
-            input_shape = (fc_sizes[i],)
-            ph.linebreak()
-
-        self.final_fc_out = K.function([model.layers[0].input], [model.layers[len(model.layers) - 2].output])
-
-        model.add(Activation('softmax'))
-
-        ph.disp('Compiling model')
-        opt = SGD(lr=0.01)
-        model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
-        ph.disp('Model is compiled')
-
-        self.model    = model
+    def set_hyperparams(self, hyperparams):
+        self.hyperparams = hyperparams
 
 
-    def post_eval(self):
-        all_anchor_vecs = get_anchor_vectors(self)
-        all_biases = get_biases(self)
-        for anchor_vecs in all_anchor_vecs:
-            self.__set_layer_stats(anchor_vecs)
+    def set_hyperparam(self, hyperparam_name, hyperparam_value):
+        if hyperparam_name.startswith('min_variances_') or hyperparam_name.startswith('selection_percentages_'):
+            name_parts = hyperparam_name.split('_')
 
-        #for biases in all_biases:
-        #    self.__set_layer_bias_stats(biases)
+            if len(name_parts) != 3:
+                raise ValueError('Invalid hyper param name')
 
+            if isinstance(name_parts[2], int):
+                raise ValueError('Invalid index supplied to hyper param name')
 
-    def train_model(self):
-        # Only use a given amount of the training data.
-        scaled_train_data = self.all_train_x[0:self.hyperparams.remaining]
-        scaled_train_labels = self.all_train_y[0:self.hyperparams.remaining]
+            attr_name = name_parts[0] + '_' + name_parts[1]
+            attr_value = getattr(self.hyperparams, attr_name)
+            attr_index = int(name_parts[2])
 
-        if len(scaled_train_data) > 0:
-            self.model.fit(scaled_train_data, scaled_train_labels, batch_size=self.hyperparams.batch_size,
-                    nb_epoch=self.hyperparams.n_epochs, verbose=ph.DISP)
-
-        unset_bias(self.model)
-
-
-    def test_model(self):
-        batch_size            = self.hyperparams.batch_size
-        self.all_test_x = self.all_test_x[0:1000]
-        self.all_test_y = self.all_test_y[0:1000]
-        (loss, accuracy) = self.model.evaluate(self.all_test_x, self.all_test_y, batch_size=batch_size, verbose=ph.DISP)
-        ph.linebreak()
-        ph.disp('Accuracy %.9f%%' % (accuracy * 100.), ph.BOLD)
-        ph.disp('-' * 50, ph.OKGREEN)
-        ph.linebreak()
-
-        self.accuracy = accuracy
-
-
-    def get_layer_stats(self):
-        layer_stats = []
-        for layer in self.model.layers:
-            # Flatten the layer weights for numerical analysis.
-            layer_weights = layer.get_weights()
-            if layer_weights is None or len(layer_weights) != 2:
-                continue
-            layer_weights = layer_weights[0]
-
-            layer_weights = np.array(layer_weights)
-            layer_weights = layer_weights.flatten()
-
-            avg = np.mean(layer_weights)
-            std = np.std(layer_weights)
-            var = np.var(layer_weights)
-            max_val = np.max(layer_weights)
-            min_val = np.min(layer_weights)
-
-            layer_stats.append((avg, std, var, max_val, min_val))
-
-        return layer_stats
-
-
-    def __add_convlayer(self, model, nkern, subsample, filter_size, flatten=False, input_shape=None,
-            weights=None, activation_func='relu'):
-        if input_shape is not None:
-            conv_layer = Convolution2D(nkern, filter_size[0], filter_size[1], border_mode='same',
-                    subsample=subsample, input_shape=input_shape)
+            attr_value[attr_index] = hyperparam_value
+            self.set_hyperparam(attr_name, attr_value)
         else:
-            conv_layer = Convolution2D(nkern, filter_size[0], filter_size[1], border_mode='same',
-                    subsample=subsample)
-
-        model.add(conv_layer)
-
-        if not weights is None:
-            bias = conv_layer.get_weights()[1]
-            change_bias = np.random.random_sample(bias.shape) / 10.0
-
-            conv_layer.set_weights([weights, bias])
-
-        max_pooling_out = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))
-        activation_layer = Activation(activation_func)
-
-        model.add(max_pooling_out)
-        model.add(activation_layer)
-
-        if flatten:
-            ph.disp('Flattening output')
-            flatten_layer = Flatten()
-            model.add(flatten_layer)
-            output = flatten_layer.output
-        else:
-            output = max_pooling_out.output
-
-        # The function is the output of the conv / pooling layers.
-        convout_f = K.function([conv_layer.input], [output])
-        return convout_f
+            setattr(self.hyperparams, hyperparam_name, hyperparam_value)
 
 
-    def __add_dense_layer(self, model, output_dim, weights = None):
-        dense_layer = Dense(output_dim)
-
-        model.add(dense_layer)
-
-        if not weights is None:
-            bias = dense_layer.get_weights()[1]
-
-            change_bias = np.random.random_sample(bias.shape) / 10.0
-
-            dense_layer.set_weights([weights, bias])
-
-
-    def __add_fclayer(self, model, output_dim, weights=None, activation_func='relu'):
-        dense_layer = Dense(output_dim)
-
-        model.add(dense_layer)
-
-        if not weights is None:
-            bias = dense_layer.get_weights()[1]
-
-            change_bias = np.random.random_sample(bias.shape) / 10.0
-
-            dense_layer.set_weights([weights, bias])
-
-        fcOutLayer = Activation(activation_func)
-        model.add(fcOutLayer)
-        fcOut_f = K.function([dense_layer.input], [fcOutLayer.output])
-        return fcOut_f
-
-
-    def __fetch_data(self, test_size, use_amount=None):
-        dataset = datasets.fetch_mldata('MNIST Original')
-        data = dataset.data.reshape((dataset.data.shape[0], 28, 28))
-        data = data[:, np.newaxis, :, :]
-
-        # Seed the random state in the data split.
-        (train_data, test_data, train_labels, test_labels) = train_test_split(data / 255.0, dataset.target.astype('int'), test_size=test_size, random_state=42)
-
-        train_labels = np_utils.to_categorical(train_labels, 10)
-        test_labels = np_utils.to_categorical(test_labels, 10)
-
-        if use_amount is not None:
-            train_data = np.array(train_data[0:use_amount])
-            train_labels = np.array(train_labels[0:use_amount])
-            test_data = np.array(test_data[0:use_amount])
-            test_labels = np.array(test_labels[0:use_amount])
-
-        return (train_data, test_data, train_labels, test_labels)
 
 
 

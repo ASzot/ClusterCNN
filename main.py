@@ -1,29 +1,33 @@
+# Uncomment these lines if running on macOS it will speed up graphing.
 #import matplotlib
 #matplotlib.use('TkAgg')
 
 import matplotlib.pyplot as plt
-from helpers.mathhelper import get_anchor_vectors
 import pickle
 import numpy as np
 import random
-from helpers.hyper_params import HyperParamData
-from helpers.mathhelper import convert_onehot_to_index
-from helpers.mathhelper import get_anchor_vectors
-from helpers.hyper_param_search import HyperParamSearch
-from model_wrapper import ModelWrapper
-from helpers.printhelper import PrintHelper as ph
+
 from sklearn.manifold import TSNE
 import sklearn.preprocessing as preprocessing
 from mpl_toolkits.mplot3d import Axes3D
 
+from helpers.mathhelper import get_anchor_vectors
+from helpers.mathhelper import convert_onehot_to_index
+from helpers.mathhelper import get_anchor_vectors
+from helpers.hyper_params import HyperParamData
+from helpers.hyper_param_search import HyperParamSearch
+from helpers.printhelper import PrintHelper as ph
+
+from model_wrapper import ModelWrapper
+
 
 def get_hyperparams():
-    selection_start = 2000
-    selection_end = 200
-    #selection = np.linspace(selection_start, selection_end, 5)
-    #sorted(selection, reverse=True)
-    selection = [0.3, 0.3, 0.3, 0.3, 0.3]
+    """
+    Get the default hyper parameters.
+    A convenience function more than anything.
+    """
 
+    selection = [0.3, 0.3, 0.3, 0.3, 0.3]
     return HyperParamData(
         input_shape = (1, 28, 28),
         subsample=(1,1),
@@ -45,6 +49,11 @@ def get_hyperparams():
 
 
 def single_test():
+    """
+    Build a model using the default hyperparameters
+    train the model and test the model.
+    """
+
     hyperparams = get_hyperparams()
     hyperparams.extra_path = 'kmeans'
     model = ModelWrapper(hyperparams, force_create=False)
@@ -54,301 +63,7 @@ def single_test():
     model.test_model()
     model.post_eval()
 
-    #model.disp_stats()
-
-    matching_samples_xy = list(model.get_closest_anchor_vecs())
-
-
-    ph.disp('Performing TSNE')
-    dims = 3
-    tsne_model = TSNE(n_components=dims, verbose=1)
-    flattened_x = [np.array(train_x).flatten() for train_x in model.compare_x]
-    flattened_x = np.array(flattened_x)
-
-    all_data = []
-    all_data.extend(flattened_x)
-    all_data.extend(model.final_avs)
-
-    try:
-        raise IOError()
-        with open('data/vis_data/tsne.h5', 'rb') as f:
-            transformed_all_data = pickle.load(f)
-    except IOError:
-        transformed_all_data = tsne_model.fit_transform(all_data)
-        with open('data/vis_data/tsne.h5', 'wb') as f:
-            pickle.dump(transformed_all_data, f)
-
-    transformed_all_data = preprocessing.normalize(transformed_all_data, norm='l2')
-
-    vis_data = transformed_all_data[:-10]
-    plot_avs = transformed_all_data[-10:]
-
-    ph.disp(len(vis_data))
-    ph.disp(len(plot_avs))
-    ph.disp('Done fitting data')
-
-    if dims == 3:
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
-
-    all_data = zip(vis_data, model.save_indices)
-
-    all_data = random.sample(all_data, 500)
-
-    ph.disp('There are %i samples to plot' % len(vis_data))
-
-
-    # 0 - red
-    # 1 - blue
-    # 2 - green
-    # 3 - yellow
-    # 4 - brown
-    # 5 - black
-    # 6 - cyan
-    # 7 - orange
-    # 8 - pink
-    # 9 - white
-    colors = ['red', 'blue', 'green', 'yellow', 'SaddleBrown', 'black',
-            'MediumTurquoise', 'OrangeRed', 'Violet', 'white']
-
-    for i, color in enumerate(colors):
-        matching_coords = [data_point[0] for data_point in all_data if
-                data_point[1] == i]
-        matching_x = [matching_coord[0] for matching_coord in matching_coords]
-        matching_y = [matching_coord[1] for matching_coord in matching_coords]
-
-        if dims == 3:
-            matching_z = [matching_coord[2] for matching_coord in matching_coords]
-            ax.scatter(matching_x, matching_y, matching_z,
-                        c=color, marker='o')
-        elif dims == 2:
-            plt.scatter(matching_x, matching_y, c=color, marker='o')
-        else:
-            raise ValueError('Invalid number of dimensions')
-
-        ph.disp('Plotted all the %i s' % (i))
-
-    ph.disp('Plotting all anchor vectors')
-
-    cur_index = 0
-    for av in plot_avs:
-        t_vals = np.linspace(0, 1, 2)
-        av_x = av[0] * t_vals
-        av_y = av[1] * t_vals
-        use_color = colors[cur_index]
-
-        if dims == 3:
-            av_z = av[2] * t_vals
-            ax.plot(av_x, av_y, av_z, linewidth=2.0, color = use_color,
-                    label='AV %i' % cur_index)
-        elif dims == 2:
-            plt.plot(av_x, av_y, linewidth=2.0, color=use_color)
-        else:
-            raise ValueError('Invalid number of dimensions')
-        cur_index += 1
-
-    ph.disp('Anchor vectors plotted')
-
-    if dims == 3:
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
-
-    model.disp_output_stats()
-
-    for i, matching_sample_xy in enumerate(matching_samples_xy):
-        ph.disp('AV: %i to %i ' % (i, matching_sample_xy[1]))
-
-        #sample = matching_sample_xy[0][0]
-        #plt.imshow(sample, cmap='gray')
-        #plt.savefig('data/figs/anchor_vecs/%i.png' % i)
-        #plt.close()
-
-    plt.show()
-
-    #sample = matching_samples_xy[0][0][0]
-    #plt.imshow(sample)
-    #plt.savefig('tmp.png')
-
-
-
-def run(save = False):
-    hyperparams = get_hyperparams()
-    model = ModelWrapper(hyperparams, force_create=True)
-
-    selection = np.concatenate([np.arange(0.01, 0.4, 0.01), np.array([0.2, 0.3, 0.4, 0.5, 0.6])])
-
-    min_variance = np.concatenate([np.arange(0.4, 0.5, 0.01), np.arange(0.01, 0.1, 0.01), np.array([0.1, 0.2, 0.3, 0.5, 0.6, 0.7])])
-
-    ph.disp('Searching %i possible combinations' % (len(selection) * len(min_variance)), ph.OKGREEN)
-
-    param_search = HyperParamSearch(model, 'create_model',
-            {
-                'selection_percentages_0': selection,
-                'min_variances_0': min_variance
-            })
-
-    param_result = param_search.search()
-    ph.disp(param_search.get_max_point())
-
-    if save:
-        with open('data/hyperparam_search.h5', 'w') as f:
-            pickle.dump(param_result, f)
-
-    ph.disp('Saved to file!')
-
-def find_optimal():
-    hyperparams = get_hyperparams()
-    max_acc = 0.0
-    max_cluster_size = 1000
-    ph.DISP = False
-    global g_layer_count
-    for i in [34900, 34950]:
-        ph.DISP = True
-        ph.disp('testing %i' % (i))
-        ph.DISP = False
-
-        g_layer_count = 0
-        hyperparams.extra_path = 'kmeans'
-        hyperparams.cluster_count = i
-        model = ModelWrapper(hyperparams, force_create=True)
-        model.create_model()
-        model.eval_performance()
-        model.test_model()
-        model.train_model()
-        model.test_model()
-
-        if max_acc < model.accuracy:
-            max_acc = model.accuracy
-            max_cluster_size = i
-
-        ph.disp(model.accuracy)
-
-    ph.disp(max_acc)
-    ph.disp(max_cluster_size)
-
-
-def test():
-    hyperparams = get_hyperparams()
-
-    interval = 20
-    trails = 1
-    total = 1000
-    kmeans_accs = []
-    reg_accs = []
-
-    ph.DISP = False
-
-    #total_range = np.concatenate([np.arange(0, total, interval), np.arange(800, 5000, 100)])
-    total_range = np.arange(0, total, interval)
-
-    ph.disp('Trying for %i train sizes' % (len(total_range)))
-
-    for i in total_range:
-        percentage = float(i) / float(total)
-
-        ph.DISP = True
-        ph.linebreak()
-        ph.disp('%.2f%%, %i' % (percentage * 100., i))
-        ph.linebreak()
-        ph.DISP = False
-
-        total_kmeans_acc = 0.0
-        total_reg_acc = 0.0
-
-        hyperparams.remaining = i
-        all_kmeans_anchor_vecs = []
-        all_reg_anchor_vecs = []
-        for j in range(trails):
-            hyperparams.should_set_weights = [True] * 5
-            hyperparams.extra_path = 'kmeans'
-            model = ModelWrapper(hyperparams, force_create=False)
-            total_kmeans_acc += model.full_create(should_eval=True)
-            all_kmeans_anchor_vecs.append(get_anchor_vectors(model))
-
-            #hyperparams.should_set_weights = [False] * 5
-            #hyperparams.extra_path = 'reg'
-            #model = ModelWrapper(hyperparams, force_create=False)
-            #total_reg_acc += model.full_create(should_eval=False)
-            #all_reg_anchor_vecs.append(get_anchor_vectors(model))
-
-        kmeans_acc = total_kmeans_acc / float(trails)
-        reg_acc = total_reg_acc / float(trails)
-
-        with open('data/av/kmeans%i.h5' % i, 'w') as f:
-            pickle.dump([i, all_kmeans_anchor_vecs], f)
-        with open('data/av/reg%i.h5' % i, 'w') as f:
-            pickle.dump([i, all_reg_anchor_vecs], f)
-
-        ph.DISP = True
-        ph.disp(kmeans_acc)
-        ph.disp(reg_acc)
-        ph.DISP = False
-
-        kmeans_accs.append((i, kmeans_acc))
-        reg_accs.append((i, reg_acc))
-        with open('data/kmeans_accuracies.h5', 'w') as f:
-            pickle.dump(kmeans_accs, f)
-
-        with open('data/reg_accuracies.h5', 'w') as f:
-            pickle.dump(reg_accs, f)
-
-    ph.DISP = True
-
-def load_anchor_angles():
-    total_range = np.arange(0, 1000, 20)
-    all_anchor_vecs = []
-    for i in total_range:
-        with open('data/kmeans%i' % i, 'r') as f:
-            anchor_vecs = f.load(f)
-
-
-def load_accuracies():
-    with open('data/kmeans_accuracies.h5', 'r') as f:
-        kmeans_accs = pickle.load(f)
-
-    with open('data/reg_accuracies.h5', 'r') as f:
-        reg_accs = pickle.load(f)
-
-    X = [kmeans_acc[0] for kmeans_acc in kmeans_accs]
-    Y1 = [reg_acc[1] * 100. for reg_acc in reg_accs]
-    Y1[7] = 55
-    Y1[180/20] = 72
-    Y1[10] = 76
-    Y2 = [kmeans_acc[1] * 100. for kmeans_acc in kmeans_accs]
-
-    kmeans_line, = plt.plot(X, Y1, label='regular', color='red')
-    reg_line, = plt.plot(X, Y2, label='k-means', color='blue')
-    plt.legend(['random', 'k-means'], loc=4)
-    plt.xlabel('# of samples')
-    plt.ylabel('Accuracy %')
-    plt.title('Accuracy vs Train Sample Count')
-
-    plt.xlim([0,600])
-    plt.savefig('data/figs/accuracy1.png')
-    plt.xlim([0,1000])
-
-    plt.savefig('data/figs/accuracy2.png')
-
-
-def load():
-    with open('data/hyperparam_search.h5', 'r') as f:
-        param_result = pickle.load(f)
-
-    param_search = HyperParamSearch(hyper_params_range = {
-            'selection_percentages_0': [],
-            'min_variances_0': []
-        },
-        points = param_result)
-    param_search.show_graph()
-
-    ph.disp(param_search.get_max_point())
 
 if __name__ == "__main__":
-    #run(True)
-    #load()
-    #test()
     single_test()
-    #find_optimal()
-    #load_accuracies()
 

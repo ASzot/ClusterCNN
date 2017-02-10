@@ -8,6 +8,7 @@ from clustering import load_or_create_centroids
 
 
 class KMeansHandler(object):
+    # Should save the output of pre k-means to a file?
     SHOULD_SAVE_RAW = False
 
     def __init__(self, should_set_weights, force_create, batch_size,
@@ -24,12 +25,20 @@ class KMeansHandler(object):
         self.prev_out = None
 
 
-    def set_filter_params(self, min_variance, selection_percent):
-        self.filter_params.min_variance = min_variance
+    def set_filter_params(self, selection_percent):
+        """
+        Set the parameters for the discriminitory filter which
+        selects samples based off of variance.
+        """
         self.filter_params.selection_percent = selection_percent
 
 
     def set_filepaths(self, extra_path):
+        """
+        Set the filepaths for where the anchor vector information is
+        saved to.
+        """
+
         centroids_out_loc = 'data/centroids/'
         raw_out_loc = 'data/centroids/'
 
@@ -52,6 +61,27 @@ class KMeansHandler(object):
 
     def handle_kmeans(self, layer_index, save_name, k, input_shape, output_shape, f_prev_out,
                         convolute, assert_shape = None):
+        """
+        Perform k-means for this layer producing the anchor vectors for the layer.
+
+        :param layer_index: This is the overall index of the layer for instance with 2
+        conv layers and 3 FC layers for the 1st FC layer the index would be 2.
+        :param save_name: The file to save and load the anchor vectors and possibly raw
+        output data to.
+        :param k: The number of anchor vectors to create. Used in the k-means algorithm.
+        :param input_shape: The input dimensions of this layer.
+        :param output_shape: The output dimensions of this layer.
+        :param f_prev_out: The Theano function that transforms the sample X the output of
+        layer layer_index.
+        :param convolute: Whether the convolution operator should be applied to the transformed
+        samples. Use this for the convolution layers.
+        :param assert_shape: Check that the resulting anchor vectors have EXACTLY this shape.
+        Note that this could be different than output shape for convolution layers where the input
+        has to be expanded.
+
+        :returns: The anchor vectors or None if the anchor vectors are not to be computed.
+        """
+
         print_str = ('-' * 10) + ('LAYER %i' % (layer_index)) + ('-' * 10)
         ph.disp(print_str, ph.OKGREEN)
 
@@ -59,6 +89,7 @@ class KMeansHandler(object):
         ph.disp('Assert shape' + str(assert_shape))
         ph.disp('Output shape ' + str(output_shape))
 
+        # This is the first layer there is no need to transform any of the data.
         if f_prev_out is None:
             # This is the first layer.
             ph.disp('Starting with the training data.')
@@ -67,13 +98,17 @@ class KMeansHandler(object):
             if self.should_set_weights[layer_index]:
                 # Chain the output from the previous.
                 ph.disp('Chaining from previous output.')
+            # Transform the input to the output of the previous layer.
             layer_out = f_prev_out([self.prev_out])[0]
 
+        # Cache the output as it will need to be chained into the future layers.
         self.prev_out = layer_out
 
+        # Save the transformed input if the flag is set.
         if self.SHOULD_SAVE_RAW and self.force_create:
             self.__save_raw_output(self.raw_out_loc + save_name + '.csv', layer_out)
 
+        # If the anchor vectors should be calculated calculate them.
         if self.should_set_weights[layer_index]:
             tmp_centroids = load_or_create_centroids(self.force_create, self.centroids_out_loc +
                 save_name + '.csv', self.batch_size, layer_out, input_shape, self.subsample,
@@ -87,6 +122,10 @@ class KMeansHandler(object):
 
 
     def __save_raw_output(self, filename, output):
+        """
+        Helper method to save the transformed input of a layer.
+        """
+
         ph.disp('Saving raw data')
         with open (filename, 'wb') as f:
             writer = csv.writer(f, delimiter=',')

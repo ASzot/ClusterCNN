@@ -1,30 +1,54 @@
 from sklearn.cluster import MiniBatchKMeans, KMeans
 from sklearn.decomposition import PCA
-import pickle
-import numpy as np
-import warnings
 from sklearn.metrics.pairwise import cosine_distances
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics.pairwise import euclidean_distances
-from sklearn.cluster import MiniBatchKMeans, KMeans
 from sklearn.metrics import pairwise
 import sklearn.preprocessing as preprocessing
+
 from scipy.cluster.vq import whiten
+
+import pickle
+import numpy as np
+import warnings
 import csv
+
 from helpers.printhelper import PrintHelper as ph
 
 
 def kmeans(input_data, k, batch_size, metric='mbk'):
+    """
+    The actual method to perform k-means.
+
+    :param k: The number of clusters
+    :param batch_size: The batch_size used for MiniBatchKMeans
+    :param metric: The distance metric to use.
+
+    :returns: The cluster centers.
+    """
+
     ph.disp('Performing kmeans on %i vectors' % len(input_data), ph.OKBLUE)
 
+    # Check that there are actually enough samples to perform k-means
     if (k > len(input_data) or batch_size > len(input_data)):
         ph.disp('Too few samples for k-means. ' +
                 'There are only %i samples while k is %i and batch size is %i' %
                 (len(input_data), k, batch_size), ph.FAIL)
         raise ValueError()
 
+    # Decide which k-means algorithm to use.
+    # For now I recommend MiniBatchKMeans
+    #TODO:
+    # Implement cosine distance k-means that is garunteed to work.
+    # I am not sure how well the current cosine distance k-means
+    # works. I just found that code somewhere on the internet.
+    # (Refer to clustering_cosine.py) for more information.
+
     if metric == 'km':
         km = KMeans(n_clusters=k, n_init=30)
+
+        # Ignore warnings that sklearn displays
+        # for some reason
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             km.fit(input_data)
@@ -38,6 +62,9 @@ def kmeans(input_data, k, batch_size, metric='mbk'):
                                 reassignment_ratio=0.01,
                                 random_state=42,
                                 verbose=False)
+
+        # Ignore warnings that sklearn displays
+        # for some reason
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             mbk.fit(input_data)
@@ -48,8 +75,17 @@ def kmeans(input_data, k, batch_size, metric='mbk'):
 
 
 def get_image_patches(input_img, input_shape, stride, filter_shape):
-    # Reconstruct the image as a matrix.
-    # imageMat = inputImg.reshape(inputShape[0], inputShape[1], inputShape[2])
+    """
+    For a given 2 dimensional image input extract the sub patches.
+    This is supposed to represent the convolution operation.
+
+    :param input_img: The raw input data should be a 2D array.
+    :param input_shape: The shape of the input.
+    :param stride: The stride of the convolution filter.
+    :filter_shape: The shape to sample with.
+
+    :returns: The extracted patches for the input image.
+    """
 
     # Get the patch.
     row_offset = 0
@@ -61,7 +97,8 @@ def get_image_patches(input_img, input_shape, stride, filter_shape):
         while col_offset <= input_shape[2] - filter_shape[1]:
             patch = []
             for filter_mat in input_img:
-                patch.append(filter_mat[row_offset:row_offset+filter_shape[0], col_offset:col_offset+filter_shape[1]])
+                patch.append(filter_mat[row_offset:row_offset+filter_shape[0],
+                    col_offset:col_offset+filter_shape[1]])
 
             patch = np.array(patch)
             patch = patch.flatten()
@@ -76,11 +113,22 @@ def get_image_patches(input_img, input_shape, stride, filter_shape):
 
 
 def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
+    """
+    Extracts the image patches for each image. See get_image_patches for more detail.
+    This is really more of a wrapper method to print debug statements and act
+    across the entire data set rather than just one image.
+
+    :returns: An array of image patches.
+    The array dimensions will be (# samples, filter_shape[0], filter_shape[1])
+    """
+
     patch_vecs = []
     total = len(data_set_x)
+
     display_percent = total / 10
     ph.disp('----Filter shape is ' + str(filter_shape))
     ph.disp('----Stride is ' + str(stride))
+
     for i, data_x in enumerate(data_set_x):
         if i % display_percent == 0:
             ph.disp('----%.2f%%' % ((float(i) / float(len(data_set_x))) * 100.))
@@ -91,12 +139,16 @@ def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
             ph.disp('Got %i patches for each vector' % (len(patches)), ph.WARNING)
             patch_np = np.array(patches[0])
             ph.disp('Patch dimension is %s' % (patch_np.shape))
+        # Add the patches to the culminative list of patches.
         patch_vecs.extend(patches)
 
     return patch_vecs
 
 
 def save_centroids(centroids, filename):
+    """
+    Helper method to save a set of anchor vectors to a filename in CSV format.
+    """
     ph.disp('Saving to file...')
     with open(filename, 'w') as f:
         writer = csv.writer(f)
@@ -105,6 +157,9 @@ def save_centroids(centroids, filename):
 
 
 def load_centroids(filename):
+    """
+    Helper method to load a set of anchor vectors from a filename that has CSV data.
+    """
     ph.disp('Attempting to load cluster data...')
     centroids = []
     with open(filename, 'r') as f:
@@ -114,9 +169,15 @@ def load_centroids(filename):
     return np.array(centroids)
 
 
-def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stride, filter_shape, k, convolute, filter_params):
+def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stride,
+        filter_shape, k, convolute, filter_params):
+    """
+    The entry point for creating the centroids for input samples for a given layer.
+    """
+
     ph.disp('- Building centroids')
 
+    # Do we need to build the image patches because we are in a convolution layer?
     if convolute:
         ph.disp('--Building patch vecs from %i vectors' % len(train_set_x))
         cluster_vecs = build_patch_vecs(train_set_x, input_shape, stride, filter_shape)
@@ -142,75 +203,58 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
             for cluster_vec in cluster_vecs:
                 csvwriter.writerow(cluster_vec)
 
-    global g_layer_count
-
+    #TODO:
+    # All of these preprocessing steps are very arbitrary.
+    # Find the correct preprocessing steps.
     ph.disp('Mean centering cluster vecs')
-    #cluster_vec_mean = np.mean(cluster_vecs)
-    #cluster_vecs = cluster_vecs - cluster_vec_mean
-
     cluster_vecs = preprocessing.scale(cluster_vecs)
     ph.disp('Cluster vecs centered')
 
     ph.disp('Normalizing')
     cluster_vecs = preprocessing.normalize(cluster_vecs, norm='l2')
 
-    #ph.disp('Whitening data.')
-    #cluster_vecs = whiten(cluster_vecs)
-
     if filter_params is not None:
         cluster_vecs = filter_params.filter_samples(cluster_vecs)
-
-    #cluster_vecs = np.multiply(cluster_vecs, mul_fact[g_layer_count])
-
-    per_sample_mean = [np.mean(cluster_vec) for cluster_vec in cluster_vecs]
-    all_data = [np.mean(cluster_vecs), np.std(cluster_vecs),
-            np.mean(per_sample_mean), np.std(per_sample_mean)]
-    formatted_disp = ["%.9f" % spec_data for spec_data in all_data]
-    format_disp = ','.join(formatted_disp)
-
-    #print 'Layer cluster vec data'
-    #print format_disp
-
-    #with open('data/cluster1k.h5', 'a') as f:
-    #    f.write(format_disp)
-    #    f.write('\n')
 
     ph.disp('Beginning k - means')
     centroids = kmeans(cluster_vecs, k, batch_size)
 
-    # Normalize each of the centroids.
-    #for i, centroid in enumerate(centroids):
-    #    centroids[i] = (centroid / np.linalg.norm(centroid))
     ph.disp('Mean centering')
     centroid_mean = np.mean(centroids)
     centroids -= centroid_mean
-    #centroids = preprocessing.scale(centroids)
-
-    mul_fact = [1, 1, 1, 1, 2]
 
     centroids = np.array(centroids)
-
     centroids = preprocessing.normalize(centroids, norm='l2')
 
     centroids = [centroid - np.mean(centroid) for centroid in centroids]
     centroids = np.array(centroids)
 
-    #centroids = np.multiply(centroids, mul_fact[g_layer_count])
-
     return centroids
 
 
-def load_or_create_centroids(forceCreate, filename, batch_size, dataSetX, input_shape, stride, filter_shape, k, filter_params, convolute=True, scale_factor = 1.0, raw_save_loc=''):
-    if not forceCreate:
+def load_or_create_centroids(force_create, filename, batch_size, data_set_x,
+        input_shape, stride, filter_shape, k, filter_params, convolute=True,
+        raw_save_loc=''):
+    """
+    Wrapper function to load they anchor vectors for the current layer if they exist
+    or otherwise create the anchor vectors. The created centroids will be by default saved.
+
+    :param force_create: Create the anchor vectors even if they already exist at a file location.
+
+    :returns: The calculated or loaded anchor vectors.
+    """
+
+    if not force_create:
         try:
             centroids = load_centroids(filename)
             ph.disp('Load succeded')
         except IOError:
             ph.disp('Load failed')
-            forceCreate = True
+            force_create = True
 
-    if forceCreate:
-        centroids = construct_centroids(raw_save_loc, batch_size, dataSetX, input_shape, stride, filter_shape, k, convolute, filter_params)
+    if force_create:
+        centroids = construct_centroids(raw_save_loc, batch_size, data_set_x, input_shape,
+                stride, filter_shape, k, convolute, filter_params)
         save_centroids(centroids, filename)
 
     return centroids

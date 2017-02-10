@@ -4,6 +4,9 @@ from helpers.mathhelper import set_anchor_vectors
 import numpy as np
 
 class AnchorVecNormalizer(Callback):
+    """
+    Normalizes the anchor vectors on each train update.
+    """
     def __init__(self, filter_size, nkerns):
         self.filter_size = filter_size
         self.nkerns = nkerns
