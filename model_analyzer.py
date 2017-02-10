@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from scipy.cluster.vq import whiten
 
-from helpers.mathhelper import get_layer_anchor_vectors
+from helpers.mathhelper import *
 
 from model_wrapper import ModelWrapper
 
@@ -206,6 +206,11 @@ class ModelAnalyzer(ModelWrapper):
 
 
     def post_eval(self):
+        """
+        Collects statistics about each anchor vector.
+
+        :returns: Nothing
+        """
         all_anchor_vecs = get_anchor_vectors(self)
         all_biases = get_biases(self)
         for anchor_vecs in all_anchor_vecs:
@@ -214,5 +219,45 @@ class ModelAnalyzer(ModelWrapper):
         # If you care about the bias information for some reason
         #for biases in all_biases:
         #    self.__set_layer_bias_stats(biases)
+
+
+    def __set_layer_bias_stats(self, biases):
+        biases = np.array(list(biases))
+
+        self.layer_bias_stds.append(np.std(biases))
+        self.layer_bias_avgs.append(np.mean(biases))
+
+
+    def __set_layer_stats(self, anchor_vecs):
+        layer_std = np.std(anchor_vecs)
+        layer_avg = np.mean(anchor_vecs)
+
+        anchor_mags = [np.linalg.norm(anchor_vec) for anchor_vec in anchor_vecs]
+        anchor_mag_std = np.std(anchor_mags)
+        anchor_mag_avg = np.mean(anchor_mags)
+
+        anchor_vec_spreads = []
+        for i, anchor_vec in enumerate(anchor_vecs):
+            compare_angles = []
+            for j, compare_vec in enumerate(anchor_vecs):
+                if j == i:
+                    continue
+                angle = angle_between(compare_vec, anchor_vec)
+                angle *= (180.0 / np.pi)
+                compare_angles.append(angle)
+            compare_angle_avg = np.mean(compare_angles)
+            anchor_vec_spreads.append(compare_angle_avg)
+
+        anchor_vec_spread_avg = np.mean(np.mean(anchor_vec_spreads))
+        anchor_vec_spread_std = np.std(np.std(anchor_vec_spreads))
+
+        self.anchor_vec_spreads_std.append(anchor_vec_spread_std)
+        self.anchor_vec_spreads_avg.append(anchor_vec_spread_avg)
+
+        self.layer_anchor_mags_avg.append(anchor_mag_avg)
+        self.layer_anchor_mags_std.append(anchor_mag_std)
+
+        self.layer_weight_stds.append(layer_std)
+        self.layer_weight_avgs.append(layer_avg)
 
 

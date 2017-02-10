@@ -27,7 +27,6 @@ from clustering import build_patch_vecs
 from helpers.mathhelper import *
 from kmeans_handler import KMeansHandler
 from load_runner import LoadRunner
-from model_analyzer import ModelAnalyzer
 
 import matplotlib.pyplot as plt
 
@@ -495,46 +494,6 @@ class ModelWrapper(object):
 
         self.layer_bias_stds = []
         self.layer_bias_avgs = []
-
-
-    def __set_layer_bias_stats(self, biases):
-        biases = np.array(list(biases))
-
-        self.layer_bias_stds.append(np.std(biases))
-        self.layer_bias_avgs.append(np.mean(biases))
-
-
-    def __set_layer_stats(self, anchor_vecs):
-        layer_std = np.std(anchor_vecs)
-        layer_avg = np.mean(anchor_vecs)
-
-        anchor_mags = [np.linalg.norm(anchor_vec) for anchor_vec in anchor_vecs]
-        anchor_mag_std = np.std(anchor_mags)
-        anchor_mag_avg = np.mean(anchor_mags)
-
-        anchor_vec_spreads = []
-        for i, anchor_vec in enumerate(anchor_vecs):
-            compare_angles = []
-            for j, compare_vec in enumerate(anchor_vecs):
-                if j == i:
-                    continue
-                angle = angle_between(compare_vec, anchor_vec)
-                angle *= (180.0 / np.pi)
-                compare_angles.append(angle)
-            compare_angle_avg = np.mean(compare_angles)
-            anchor_vec_spreads.append(compare_angle_avg)
-
-        anchor_vec_spread_avg = np.mean(np.mean(anchor_vec_spreads))
-        anchor_vec_spread_std = np.std(np.std(anchor_vec_spreads))
-
-        self.anchor_vec_spreads_std.append(anchor_vec_spread_std)
-        self.anchor_vec_spreads_avg.append(anchor_vec_spread_avg)
-
-        self.layer_anchor_mags_avg.append(anchor_mag_avg)
-        self.layer_anchor_mags_std.append(anchor_mag_std)
-
-        self.layer_weight_stds.append(layer_std)
-        self.layer_weight_avgs.append(layer_avg)
 
 
     def set_hyperparams(self, hyperparams):

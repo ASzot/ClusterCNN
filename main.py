@@ -18,8 +18,7 @@ from helpers.hyper_params import HyperParamData
 from helpers.hyper_param_search import HyperParamSearch
 from helpers.printhelper import PrintHelper as ph
 
-from model_wrapper import ModelWrapper
-
+from model_analyzer import ModelAnalyzer
 
 def get_hyperparams():
     """
@@ -56,7 +55,7 @@ def single_test():
 
     hyperparams = get_hyperparams()
     hyperparams.extra_path = 'kmeans'
-    model = ModelWrapper(hyperparams, force_create=False)
+    model = ModelAnalyzer(hyperparams, force_create=False)
     model.create_model()
     model.eval_performance()
     model.train_model()
