@@ -26,7 +26,6 @@ import operator
 from clustering import build_patch_vecs
 from helpers.mathhelper import *
 from kmeans_handler import KMeansHandler
-from load_runner import LoadRunner
 
 import matplotlib.pyplot as plt
 

@@ -1,4 +1,4 @@
-from sklearn.cluster import MiniBatchKMeans, KMeans
+from sklearn.cluster import MiniBatchKMeans
 from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_distances
 from sklearn.metrics.pairwise import cosine_similarity
@@ -14,10 +14,10 @@ import warnings
 import csv
 
 from helpers.printhelper import PrintHelper as ph
-from clustering_cosine import custom_kmeans
+from custom_kmeans.k_means_ import KMeans
 
 
-def kmeans(input_data, k, batch_size, metric='cosine'):
+def kmeans(input_data, k, batch_size, metric='km'):
     """
     The actual method to perform k-means.
 
@@ -46,10 +46,9 @@ def kmeans(input_data, k, batch_size, metric='cosine'):
     # (Refer to clustering_cosine.py) for more information.
 
     if metric == 'km':
-        km = KMeans(n_clusters=k, n_init=30)
+        km = KMeans(n_clusters=k, n_init=10, n_jobs = -1)
 
-        # Ignore warnings that sklearn displays
-        # for some reason
+        # Ignore the excessive warnings that sklearn displays
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             km.fit(input_data)
@@ -70,9 +69,6 @@ def kmeans(input_data, k, batch_size, metric='cosine'):
             warnings.simplefilter("ignore")
             mbk.fit(input_data)
         return mbk.cluster_centers_
-    else:
-        ph.disp('Using ' + metric + ' for k-means metric', ph.HEADER)
-        return custom_kmeans(input_data, k, metric)
 
 
 def get_image_patches(input_img, input_shape, stride, filter_shape):
