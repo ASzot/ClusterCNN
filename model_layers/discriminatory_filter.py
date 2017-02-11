@@ -23,6 +23,7 @@ class DiscriminatoryFilter(object):
         :param samples: The list of samples to be filtered.
         :return the selected samples
         """
+
         ph.disp('Getting sample variances')
         sample_variances = [(sample, np.std(sample)) for sample in samples]
         variances = [sample_variance[1] for sample_variance in sample_variances]
@@ -46,7 +47,7 @@ class DiscriminatoryFilter(object):
 
         ph.disp(('-' * 5) + 'Filtering input.')
 
-        ph.disp('-----Min variance: %.5f, Select: %.5f%%' % (self.min_variance, (self.selection_percent * 100.)))
+        ph.disp('-----Min variance: %.5f, Select: %.5f%%' % (min_variance, (self.selection_percent * 100.)))
         ph.disp('-----Starting with %i samples' % len(samples))
 
         prev_len = len(variances)

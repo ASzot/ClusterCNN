@@ -26,7 +26,26 @@ def get_hyperparams():
     A convenience function more than anything.
     """
 
+    # The selection percentages are an incredibly sensitive
+    # hyperparameter.
+
+    #TODO:
+    # Make the model less sensitive to the selection percentage
+
+    # The selection percentages define the (x_i * 100.)% that should be taken
+    # at layer i. For instance with the below numbers 30% of the max variance samples
+    # will be selected at each layer of the network.
     selection = [0.3, 0.3, 0.3, 0.3, 0.3]
+
+    # The cluster count is another highly sensitive parameter.
+    # The cluster count defines how many of the samples are passed through the
+    # network and are used in the k-means calculations to set the anchor vectors.
+    # Note that I was able to obtain over 30% accuracy with 30,000 cluster count.
+    # I am using 2,000 below because it is faster for testing.
+
+    #TODO:
+    # Allow cluster count to scale.
+
     return HyperParamData(
         input_shape = (1, 28, 28),
         subsample=(1,1),
@@ -36,14 +55,13 @@ def get_hyperparams():
         nkerns = (6,16),
         fc_sizes = (120, 84, 10,),
         n_epochs = 10,
-        min_variances = [0.5, 0.8, 0.8, 0.3, 0.04],
         selection_percentages = selection,
         use_filters = (True, True, True, True, True),
         activation_func = 'relu',
         extra_path = '',
         should_set_weights = [True] * 5,
         should_eval = True,
-        remaining = 200,
+        remaining = 0,
         cluster_count = 2000)
 
 
@@ -55,7 +73,7 @@ def single_test():
 
     hyperparams = get_hyperparams()
     hyperparams.extra_path = 'kmeans'
-    model = ModelAnalyzer(hyperparams, force_create=False)
+    model = ModelAnalyzer(hyperparams, force_create=True)
     model.create_model()
     model.eval_performance()
     model.train_model()

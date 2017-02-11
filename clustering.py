@@ -14,9 +14,10 @@ import warnings
 import csv
 
 from helpers.printhelper import PrintHelper as ph
+from clustering_cosine import custom_kmeans
 
 
-def kmeans(input_data, k, batch_size, metric='mbk'):
+def kmeans(input_data, k, batch_size, metric='cosine'):
     """
     The actual method to perform k-means.
 
