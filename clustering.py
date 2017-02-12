@@ -48,7 +48,7 @@ def kmeans(input_data, k, batch_size, metric='km'):
     # (Refer to clustering_cosine.py) for more information.
 
     if metric == 'km':
-        km = KMeans(n_clusters=k, n_init=30, n_jobs = -1)
+        km = KMeans(n_clusters=k, n_init=10, n_jobs = -1)
 
         # Ignore the excessive warnings that sklearn displays
         with warnings.catch_warnings():
@@ -73,6 +73,7 @@ def kmeans(input_data, k, batch_size, metric='km'):
         return mbk.cluster_centers_
 
 
+
 def get_image_patches(input_img, input_shape, stride, filter_shape):
     """
     For a given 2 dimensional image input extract the sub patches.
@@ -88,24 +89,44 @@ def get_image_patches(input_img, input_shape, stride, filter_shape):
 
     # Optimized code to extract image subpatches.
     # We are only going to select the first color channel for now.
-    input_img = input_img[0]
-    # Won't make a copy if not needed
-    input_img = np.ascontiguousarray(input_img)
-    X, Y = input_img.shape
-    x, y = filter_shape
-    # Number of patches, patch_shape
-    shape = ((X-x+stride[0]), (Y-y+stride[1]), x, y)
-    # The right strides can be thought by:
-    # 1) Thinking of `img` as a chunk of memory in C order
-    # 2) Asking how many items through that chunk of memory are needed when indices
-    #    i,j,k,l are incremented by one
-    use_strides = input_img.itemsize*np.array([Y, stride[0], Y, stride[1]])
 
-    patches = np.lib.stride_tricks.as_strided(input_img, shape=shape, strides=use_strides)
-    contiguous_patches = np.ascontiguousarray(patches)
+    all_depth_patches = []
+    for depth_channel in range(len(input_img)):
+        img_channel = input_img[0]
+
+        # Won't make a copy if not needed
+        img_channel = np.ascontiguousarray(input_img[depth_channel])
+        X, Y = img_channel.shape
+        x, y = filter_shape
+
+        # Check that the stride is actually valid.
+        if (X - x) % stride[0] != 0 or (Y - y) % stride[1] != 0:
+            raise ValueError('Invalid stride. Non integer number arises!')
+
+        x_dim = (((X-x) / stride[0]) + 1)
+        y_dim = (((Y-y) / stride[1]) + 1)
+        x_dim = int(x_dim)
+        y_dim = int(y_dim)
+
+        # Number of patches, patch_shape
+        shape = (x_dim, y_dim, x, y)
+
+        # The right strides can be thought by:
+        # 1) Thinking of `img` as a chunk of memory in C order
+        # 2) Asking how many items through that chunk of memory are needed when indices
+        #    i,j,k,l are incremented by one
+        use_strides = img_channel.itemsize * np.array([Y, stride[0], Y, stride[1]])
+
+        patches = np.lib.stride_tricks.as_strided(img_channel, shape=shape, strides=use_strides)
+        all_depth_patches.append(patches)
+
+    #all_depth_patches = np.array(all_depth_patches).flatten()
+
+    contiguous_patches = np.ascontiguousarray(all_depth_patches)
     patches_shape = contiguous_patches.shape
-    contiguous_patches = contiguous_patches.reshape(patches_shape[0] * patches_shape[1],
-            patches_shape[2] * patches_shape[3])
+
+    contiguous_patches = contiguous_patches.reshape(patches_shape[1] * patches_shape[2],
+            patches_shape[0], patches_shape[3] * patches_shape[4])
 
     return contiguous_patches
 
@@ -162,15 +183,15 @@ def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
         patch_vecs = p.map(transform_f, data_set_x)
 
     patch_vecs = np.array(patch_vecs)
+    print('----Patch vecs shape ' + str(patch_vecs.shape))
     # This will be a 3D array
     # (# samples, # patches per sample, # flattened filter size dimension)
     patch_vecs_shape = patch_vecs.shape
     patch_vecs = patch_vecs.reshape(patch_vecs_shape[0] * patch_vecs_shape[1],
-            patch_vecs_shape[2])
+            patch_vecs_shape[2] * patch_vecs_shape[3])
+    print('----Reshaped patch vecs shape ' + str(patch_vecs.shape))
 
-    print(patch_vecs.shape)
-
-    # The asyncronous version of the code above.
+    # The not parralel version of the code above.
     #for i, data_x in enumerate(data_set_x):
     #    if i % display_percent == 0:
     #        ph.disp('----%.2f%%' % ((float(i) / float(len(data_set_x))) * 100.))

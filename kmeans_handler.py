@@ -82,12 +82,20 @@ class KMeansHandler(object):
         :returns: The anchor vectors or None if the anchor vectors are not to be computed.
         """
 
+        ph.linebreak()
         print_str = ('-' * 10) + ('LAYER %i' % (layer_index)) + ('-' * 10)
         ph.disp(print_str, ph.OKGREEN)
 
-        ph.disp('Input shape ' + str(input_shape))
-        ph.disp('Assert shape' + str(assert_shape))
-        ph.disp('Output shape ' + str(output_shape))
+        if self.prev_out is None:
+            disp_use_count = len(self.train_data)
+        else:
+            disp_use_count = len(self.prev_out)
+
+        ph.disp('With %i samples avaliable' % disp_use_count)
+
+        ph.disp('Input shape ' + str(input_shape), ph.FAIL)
+        ph.disp('Assert shape' + str(assert_shape), ph.FAIL)
+        ph.disp('Output shape ' + str(output_shape), ph.FAIL)
 
         # This is the first layer there is no need to transform any of the data.
         if f_prev_out is None:

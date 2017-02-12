@@ -35,7 +35,7 @@ def get_hyperparams():
     # The selection percentages define the (x_i * 100.)% that should be taken
     # at layer i. For instance with the below numbers 30% of the max variance samples
     # will be selected at each layer of the network.
-    selection = [0.3, 0.3, 0.3, 0.3, 0.3]
+    selection = [0.3, 0.3, 0.01, 0.01, 0.01]
 
     # The cluster count is another highly sensitive parameter.
     # The cluster count defines how many of the samples are passed through the
@@ -49,7 +49,7 @@ def get_hyperparams():
     return HyperParamData(
         input_shape = (1, 28, 28),
         subsample=(1,1),
-        patches_subsample = (5,5),
+        patches_subsample = (1,1),
         filter_size=(5,5),
         batch_size = 5,
         nkerns = (6,16),
@@ -62,7 +62,7 @@ def get_hyperparams():
         should_set_weights = [True] * 5,
         should_eval = True,
         remaining = 0,
-        cluster_count = 2000)
+        cluster_count = 4000)
 
 
 def single_test():
