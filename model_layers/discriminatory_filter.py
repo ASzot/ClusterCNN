@@ -25,8 +25,10 @@ class DiscriminatoryFilter(object):
         """
 
         ph.disp('Getting sample variances')
-        sample_variances = [(sample, np.std(sample)) for sample in samples]
-        variances = [sample_variance[1] for sample_variance in sample_variances]
+        #sample_variances = [(sample, np.std(sample)) for sample in samples]
+
+        variances = np.std(samples, axis=1)
+        sample_variances = list(zip(samples, variances))
 
         overall_var = np.std(samples)
         overall_avg = np.mean(samples)

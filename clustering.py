@@ -12,6 +12,8 @@ import pickle
 import numpy as np
 import warnings
 import csv
+from multiprocessing import Pool
+from functools import partial
 
 from helpers.printhelper import PrintHelper as ph
 from custom_kmeans.k_means_ import KMeans
@@ -46,7 +48,7 @@ def kmeans(input_data, k, batch_size, metric='km'):
     # (Refer to clustering_cosine.py) for more information.
 
     if metric == 'km':
-        km = KMeans(n_clusters=k, n_init=10, n_jobs = -1)
+        km = KMeans(n_clusters=k, n_init=30, n_jobs = -1)
 
         # Ignore the excessive warnings that sklearn displays
         with warnings.catch_warnings():
@@ -84,29 +86,54 @@ def get_image_patches(input_img, input_shape, stride, filter_shape):
     :returns: The extracted patches for the input image.
     """
 
-    # Get the patch.
-    row_offset = 0
-    col_offset = 0
-    patches = []
+    # Optimized code to extract image subpatches.
+    # We are only going to select the first color channel for now.
+    input_img = input_img[0]
+    # Won't make a copy if not needed
+    input_img = np.ascontiguousarray(input_img)
+    X, Y = input_img.shape
+    x, y = filter_shape
+    # Number of patches, patch_shape
+    shape = ((X-x+stride[0]), (Y-y+stride[1]), x, y)
+    # The right strides can be thought by:
+    # 1) Thinking of `img` as a chunk of memory in C order
+    # 2) Asking how many items through that chunk of memory are needed when indices
+    #    i,j,k,l are incremented by one
+    use_strides = input_img.itemsize*np.array([Y, stride[0], Y, stride[1]])
 
-    # Remember the receptive field acts across the entire depth parameter.
-    while row_offset <= input_shape[1] - filter_shape[0]:
-        while col_offset <= input_shape[2] - filter_shape[1]:
-            patch = []
-            for filter_mat in input_img:
-                patch.append(filter_mat[row_offset:row_offset+filter_shape[0],
-                    col_offset:col_offset+filter_shape[1]])
+    patches = np.lib.stride_tricks.as_strided(input_img, shape=shape, strides=use_strides)
+    contiguous_patches = np.ascontiguousarray(patches)
+    patches_shape = contiguous_patches.shape
+    contiguous_patches = contiguous_patches.reshape(patches_shape[0] * patches_shape[1],
+            patches_shape[2] * patches_shape[3])
 
-            patch = np.array(patch)
-            patch = patch.flatten()
-            patches.append(patch)
+    return contiguous_patches
 
-            col_offset += stride[1]
 
-        row_offset += stride[0]
-        col_offset = 0
+    # Not optimized but clearer code to get image subpatches.
+    ## Get the patch.
+    #row_offset = 0
+    #col_offset = 0
+    #patches = []
 
-    return patches
+    ## Remember the receptive field acts across the entire depth parameter.
+    #while row_offset <= input_shape[1] - filter_shape[0]:
+    #    while col_offset <= input_shape[2] - filter_shape[1]:
+    #        patch = []
+    #        for filter_mat in input_img:
+    #            patch.append(filter_mat[row_offset:row_offset+filter_shape[0],
+    #                col_offset:col_offset+filter_shape[1]])
+
+    #        patch = np.array(patch)
+    #        patch = patch.flatten()
+    #        patches.append(patch)
+
+    #        col_offset += stride[1]
+
+    #    row_offset += stride[0]
+    #    col_offset = 0
+
+    #return patches
 
 
 def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
@@ -126,18 +153,38 @@ def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
     ph.disp('----Filter shape is ' + str(filter_shape))
     ph.disp('----Stride is ' + str(stride))
 
-    for i, data_x in enumerate(data_set_x):
-        if i % display_percent == 0:
-            ph.disp('----%.2f%%' % ((float(i) / float(len(data_set_x))) * 100.))
+    transform_f = partial(get_image_patches, input_shape=input_shape,
+            stride=stride, filter_shape=filter_shape)
 
-        patches = get_image_patches(data_x, input_shape, stride, filter_shape)
+    # Use concurrent patch extraction.
+    # Much faster than the synchronous equivelent.
+    with Pool(7) as p:
+        patch_vecs = p.map(transform_f, data_set_x)
 
-        if i == 0:
-            ph.disp('Got %i patches for each vector' % (len(patches)), ph.WARNING)
-            patch_np = np.array(patches[0])
-            ph.disp('Patch dimension is %s' % (patch_np.shape))
-        # Add the patches to the culminative list of patches.
-        patch_vecs.extend(patches)
+    patch_vecs = np.array(patch_vecs)
+    # This will be a 3D array
+    # (# samples, # patches per sample, # flattened filter size dimension)
+    patch_vecs_shape = patch_vecs.shape
+    patch_vecs = patch_vecs.reshape(patch_vecs_shape[0] * patch_vecs_shape[1],
+            patch_vecs_shape[2])
+
+    print(patch_vecs.shape)
+
+    # The asyncronous version of the code above.
+    #for i, data_x in enumerate(data_set_x):
+    #    if i % display_percent == 0:
+    #        ph.disp('----%.2f%%' % ((float(i) / float(len(data_set_x))) * 100.))
+
+    #    patches = get_image_patches(data_x, input_shape, stride, filter_shape)
+
+    #    if i == 0:
+    #        ph.disp('Got %i patches for each vector' % (len(patches)), ph.WARNING)
+    #        patch_np = np.array(patches[0])
+    #        ph.disp('Patch dimension is %s' % (patch_np.shape))
+    #    # Add the patches to the culminative list of patches.
+    #    patch_vecs.extend(patches)
+
+    #print(np.array(patch_vecs).shape)
 
     return patch_vecs
 
