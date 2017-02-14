@@ -14,10 +14,12 @@ import numpy as np
 import warnings
 import csv
 from multiprocessing import Pool
+from multiprocessing import cpu_count
 from functools import partial
 
 from helpers.printhelper import PrintHelper as ph
 from helpers.mathhelper import plot_samples
+from helpers.mathhelper import subtract_mean
 #from custom_kmeans.k_means_ import KMeans
 from sklearn.cluster import KMeans
 from spherecluster import SphericalKMeans
@@ -195,7 +197,8 @@ def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
 
     # Use concurrent patch extraction.
     # Much faster than the synchronous equivelent.
-    with Pool(7) as p:
+
+    with Pool(processes=cpu_count()) as p:
         patch_vecs = p.map(transform_f, data_set_x)
 
     patch_vecs = np.array(patch_vecs)
@@ -287,32 +290,41 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     #TODO:
     # All of these preprocessing steps are very arbitrary.
     # Find the correct preprocessing steps.
-    ph.disp('Mean centering cluster vecs')
     #cluster_vecs = preprocessing.scale(cluster_vecs)
-    cluster_vecs = [cluster_vec - np.mean(cluster_vec) for cluster_vec in cluster_vecs]
-    #cluster_vecs = [preprocessing.scale(cluster_vec) for cluster_vec in cluster_vecs]
-    ph.disp('Cluster vecs centered')
 
-    ph.disp('Normalizing')
-    cluster_vecs = preprocessing.normalize(cluster_vecs, norm='l2')
+    #cluster_vecs = [preprocessing.scale(cluster_vec) for cluster_vec in cluster_vecs]
 
     if filter_params is not None:
         cluster_vecs = filter_params.filter_samples(cluster_vecs)
 
+    ph.disp('Mean centering cluster vecs')
+
+    #with Pool(processes=cpu_count()) as p:
+    #    cluster_vecs = p.map(subtract_mean, cluster_vecs)
+
+    cluster_vecs = preprocessing.scale(cluster_vecs)
+
+    ph.disp('Cluster vecs centered')
+
+    cluster_vecs = np.array(cluster_vecs)
+
+    ph.disp('Normalizing')
+    cluster_vecs = preprocessing.normalize(cluster_vecs, norm='l2')
+
     ph.disp('Beginning k - means')
     centroids, labels = kmeans(cluster_vecs, k, batch_size)
 
-    #ph.disp('Mean centering')
+    ph.disp('Mean centering anchor vectors')
     #centroid_mean = np.mean(centroids)
     #centroids -= centroid_mean
 
     #centroids = [preprocessing.scale(centroid) for centroid in centroids]
 
-    #centroids = np.array(centroids)
-    #centroids = preprocessing.normalize(centroids, norm='l2')
+    centroids = [centroid - np.mean(centroid) for centroid in centroids]
+    centroids = np.array(centroids)
 
-    #centroids = [centroid - np.mean(centroid) for centroid in centroids]
-    #centroids = np.array(centroids)
+    centroids = np.array(centroids)
+    centroids = preprocessing.normalize(centroids, norm='l2')
 
     sample_size = 2000
 

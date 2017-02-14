@@ -10,6 +10,10 @@ import random
 import pickle
 
 
+def subtract_mean(cluster_vec):
+    return cluster_vec - np.mean(cluster_vec)
+
+
 def plot_samples(samples, anchor_vecs, labels):
     ph.disp('Performing TSNE')
 
