@@ -8,6 +8,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from helpers.printhelper import PrintHelper as ph
 import random
 import pickle
+from multiprocessing import cpu_count
 
 
 def subtract_mean(cluster_vec):
@@ -26,7 +27,7 @@ def plot_samples(samples, anchor_vecs, labels):
     labels = labels[0:tsne_use_samples]
 
     if ndim == 2:
-        tsne_model = MultiCoreTSNE(n_jobs=5)
+        tsne_model = MultiCoreTSNE(n_jobs=cpu_count())
     else:
         tsne_model = TSNE(n_components=3, verbose=True)
 

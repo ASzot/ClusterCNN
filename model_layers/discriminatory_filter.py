@@ -2,7 +2,9 @@ import numpy as np
 from helpers.printhelper import PrintHelper as ph
 
 class DiscriminatoryFilter(object):
-    CUTOFF = None
+    CUTOFF = [5000, 5000, 2000, 1000, 500]
+    cur_layer = 0
+    use_select_count = False
 
     def __init__(self, selection_percent = None):
         """
@@ -36,6 +38,7 @@ class DiscriminatoryFilter(object):
 
         thresh_fact = 0.0
         min_variance = per_sample_avg + (thresh_fact * per_sample_var)
+        min_variance = 0.0
 
         ph.disp('STD: %.5f, Avg: %.5f' % (overall_var, overall_avg), ph.OKGREEN)
         ph.disp('Per Sample STD: STD: %.5f, Avg: %.5f' % (per_sample_var, per_sample_avg), ph.OKGREEN)
@@ -46,8 +49,7 @@ class DiscriminatoryFilter(object):
 
         ph.disp(('-' * 5) + 'Filtering input.')
 
-        use_select_count = True
-        if not use_select_count:
+        if not self.use_select_count:
             ph.disp('-----Min variance: %.5f, Select: %.5f%%' % (min_variance, (self.selection_percent * 100.)))
 
         ph.disp('-----Starting with %i samples' % len(samples))
@@ -60,8 +62,9 @@ class DiscriminatoryFilter(object):
                     if variance > min_variance]
 
             ph.disp('-----%i samples discarded from min variance' % (prev_len - len(sample_variances)))
+            ph.disp('-----%i samples remain' % len(sample_variances))
 
-        if not use_select_count:
+        if not self.use_select_count:
             selection_count = int(len(sample_variances) * self.selection_percent)
         else:
             selection_count = int(self.selection_percent)
@@ -78,14 +81,18 @@ class DiscriminatoryFilter(object):
 
         # An optional cutoff parameter to only select CUTOFF values.
         # For slower computers with not as much RAM and processing power.
-        if (self.CUTOFF is not None) and selection_count > self.CUTOFF:
+        if (self.CUTOFF is not None) and selection_count > self.CUTOFF[self.cur_layer]:
             ph.disp('-----Greater than the cutoff randomly sampling')
             selected_samples = []
-            for i in np.arange(self.CUTOFF):
+            cur_cutoff = self.CUTOFF[self.cur_layer]
+
+            for i in np.arange(cur_cutoff):
                 select_index = np.random.randint(len(samples))
                 selected_samples.append(samples[select_index])
                 del samples[select_index]
             samples = selected_samples
+
+        self.cur_layer += 1
 
         return samples
 
