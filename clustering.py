@@ -320,6 +320,7 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     #centroids -= centroid_mean
 
     #centroids = [preprocessing.scale(centroid) for centroid in centroids]
+    centroids = preprocessing.scale(centroids)
 
     centroids = [centroid - np.mean(centroid) for centroid in centroids]
     centroids = np.array(centroids)
