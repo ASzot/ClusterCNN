@@ -4,7 +4,16 @@ import matplotlib.pyplot as plt
 
 from scipy.cluster.vq import whiten
 
+import pickle
+import random
+
 from helpers.mathhelper import *
+from helpers.printhelper import PrintHelper as ph
+
+from MulticoreTSNE import MulticoreTSNE as TSNE
+import sklearn.preprocessing as preprocessing
+from mpl_toolkits.mplot3d import Axes3D
+from sklearn.metrics.pairwise import cosine_similarity
 
 from model_wrapper import ModelWrapper
 
@@ -17,13 +26,13 @@ class ModelAnalyzer(ModelWrapper):
     what is going on in the network.
     """
 
-
     def perform_tsne(self):
         matching_samples_xy = list(self.get_closest_anchor_vecs())
 
         ph.disp('Performing TSNE')
-        dims = 3
-        tsne_model = TSNE(n_components=dims, verbose=1)
+        dims = 2
+
+        tsne_model = TSNE(n_jobs=6)
         flattened_x = [np.array(train_x).flatten() for train_x in self.compare_x]
         flattened_x = np.array(flattened_x)
 
@@ -31,31 +40,37 @@ class ModelAnalyzer(ModelWrapper):
         all_data.extend(flattened_x)
         all_data.extend(self.final_avs)
 
-        try:
-            raise IOError()
-            with open('data/vis_data/tsne.h5', 'rb') as f:
-                transformed_all_data = pickle.load(f)
-        except IOError:
-            transformed_all_data = tsne_model.fit_transform(all_data)
-            with open('data/vis_data/tsne.h5', 'wb') as f:
-                pickle.dump(transformed_all_data, f)
+        all_data = np.array(all_data, dtype='float64')
 
-        transformed_all_data = preprocessing.normalize(transformed_all_data, norm='l2')
+        # normalize all of the input vectors.
+        all_data = preprocessing.normalize(all_data)
+
+        transformed_all_data = tsne_model.fit_transform(all_data)
+        with open('data/vis_data/tsne.h5', 'wb') as f:
+            pickle.dump(transformed_all_data, f)
+
+        #try:
+        #    raise IOError()
+        #    with open('data/vis_data/tsne.h5', 'rb') as f:
+        #        transformed_all_data = pickle.load(f)
+        #except IOError:
+
+        #transformed_all_data = preprocessing.normalize(transformed_all_data, norm='l2')
 
         vis_data = transformed_all_data[:-10]
         plot_avs = transformed_all_data[-10:]
 
-        ph.disp(len(vis_data))
-        ph.disp(len(plot_avs))
         ph.disp('Done fitting data')
 
         if dims == 3:
             fig = plt.figure()
             ax = fig.add_subplot(111, projection='3d')
 
-        all_data = zip(vis_data, self.save_indices)
+        # This relies on the assumption that after t-sne the data elements
+        # are still in the same order.
+        all_data = list(zip(vis_data, self.save_indices))
 
-        all_data = random.sample(all_data, 500)
+        all_data = random.sample(all_data, 200)
 
         ph.disp('There are %i samples to plot' % len(vis_data))
 
@@ -175,11 +190,13 @@ class ModelAnalyzer(ModelWrapper):
     def disp_output_stats(self):
         final_avs = get_anchor_vectors(self)[-1]
 
-        final_avs = [np.linalg.norm(final_av) for final_av in final_avs]
+        #final_avs = [np.linalg.norm(final_av) for final_av in final_avs]
 
         per_anchor_vec_avg = [np.mean(final_av) for final_av in final_avs]
+        per_anchor_vec_std = [np.std(final_av) for final_av in final_avs]
 
         ph.disp(per_anchor_vec_avg)
+        ph.disp(per_anchor_vec_std)
 
 
     def get_layer_stats(self):

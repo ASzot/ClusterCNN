@@ -16,10 +16,15 @@ from multiprocessing import Pool
 from functools import partial
 
 from helpers.printhelper import PrintHelper as ph
-from custom_kmeans.k_means_ import KMeans
+from helpers.mathhelper import plot_samples
+#from custom_kmeans.k_means_ import KMeans
+from sklearn.cluster import KMeans
+from spherecluster import SphericalKMeans
+from spherecluster import VonMisesFisherMixture
+from scipy.sparse import issparse
 
 
-def kmeans(input_data, k, batch_size, metric='km'):
+def kmeans(input_data, k, batch_size, metric='sp'):
     """
     The actual method to perform k-means.
 
@@ -30,7 +35,7 @@ def kmeans(input_data, k, batch_size, metric='km'):
     :returns: The cluster centers.
     """
 
-    ph.disp('Performing kmeans on %i vectors' % len(input_data), ph.OKBLUE)
+    ph.disp('Performing %s kmeans on %i vectors' % (metric, len(input_data)), ph.OKBLUE)
 
     # Check that there are actually enough samples to perform k-means
     if (k > len(input_data) or batch_size > len(input_data)):
@@ -39,13 +44,9 @@ def kmeans(input_data, k, batch_size, metric='km'):
                 (len(input_data), k, batch_size), ph.FAIL)
         raise ValueError()
 
-    # Decide which k-means algorithm to use.
-    # For now I recommend MiniBatchKMeans
-    #TODO:
-    # Implement cosine distance k-means that is garunteed to work.
-    # I am not sure how well the current cosine distance k-means
-    # works. I just found that code somewhere on the internet.
-    # (Refer to clustering_cosine.py) for more information.
+    # For the context of this problem only the spherical k-means methods make sense.
+    # However, the von mises fisher mixture method is not converging.
+    # Therefore, I recommend always using SphericalKMeans
 
     if metric == 'km':
         km = KMeans(n_clusters=k, n_init=10, n_jobs = -1)
@@ -54,7 +55,21 @@ def kmeans(input_data, k, batch_size, metric='km'):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             km.fit(input_data)
-        return km.cluster_centers_
+        return km.cluster_centers_, km.labels_
+
+    elif metric == 'sp':
+        # Spherical clustering.
+        skm = SphericalKMeans(n_clusters=k, n_jobs=-1)
+        skm.fit(input_data)
+        return skm.cluster_centers_, skm.labels_
+
+    elif metric == 'vmfmh':
+        # VonMisesFisherMixtureHard
+        # I have not been able to get this method to converge.
+        vmf_hard = VonMisesFisherMixture(n_clusters=k, n_jobs=-1,posterior_type='hard')
+        vmf_hard.fit(input_data)
+        return vmf_hard.cluster_centers_
+
     elif metric == 'mbk':
         # Set the random seed.
         mbk = MiniBatchKMeans(init='k-means++',
@@ -259,7 +274,7 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
             input_shape_prod = input_shape_prod * input_shape_dim
         cluster_vecs = train_set_x.reshape(sp[0], int(input_shape_prod))
 
-    cluster_vecs = np.array(cluster_vecs)
+    cluster_vecs = np.array(cluster_vecs, dtype='float32')
 
     if raw_save_loc != '':
         ph.disp('Saving image patches')
@@ -273,6 +288,7 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     # Find the correct preprocessing steps.
     ph.disp('Mean centering cluster vecs')
     cluster_vecs = preprocessing.scale(cluster_vecs)
+    #cluster_vecs = [preprocessing.scale(cluster_vec) for cluster_vec in cluster_vecs]
     ph.disp('Cluster vecs centered')
 
     ph.disp('Normalizing')
@@ -282,17 +298,24 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
         cluster_vecs = filter_params.filter_samples(cluster_vecs)
 
     ph.disp('Beginning k - means')
-    centroids = kmeans(cluster_vecs, k, batch_size)
+    is_sparse = issparse(cluster_vecs)
+    print('The cluster vectors are {}'.format(is_sparse))
+    centroids, labels = kmeans(cluster_vecs, k, batch_size)
 
     ph.disp('Mean centering')
-    centroid_mean = np.mean(centroids)
-    centroids -= centroid_mean
+    #centroid_mean = np.mean(centroids)
+    #centroids -= centroid_mean
 
-    centroids = np.array(centroids)
-    centroids = preprocessing.normalize(centroids, norm='l2')
+    #centroids = [preprocessing.scale(centroid) for centroid in centroids]
 
-    centroids = [centroid - np.mean(centroid) for centroid in centroids]
-    centroids = np.array(centroids)
+    #centroids = np.array(centroids)
+    #centroids = preprocessing.normalize(centroids, norm='l2')
+
+    plot_samples(cluster_vecs, centroids, labels)
+    raise ValueError()
+
+    #centroids = [centroid - np.mean(centroid) for centroid in centroids]
+    #centroids = np.array(centroids)
 
     return centroids
 

@@ -420,6 +420,8 @@ class ModelWrapper(object):
 
         # Pass each of the vectors through the network.
         transformed_x = self.final_fc_out([norm_all_train_x])[0]
+
+        # Normalize to the unit sphere.
         transformed_x = preprocessing.normalize(transformed_x, norm='l2')
         self.compare_x = transformed_x
 

@@ -20,6 +20,7 @@ The motivation behind this experiment is viewing convolution filter weights as a
 * sklearn
 * Theano
 * Keras
+* [MulticoreTSNE](https://github.com/DmitryUlyanov/Multicore-TSNE)
 
 ##Installation
 I recommend using Anaconda to manage packages and Python versions. You can find
@@ -36,5 +37,7 @@ the installer for Anaconda [here](https://www.continuum.io/downloads).
     command does not work.
   * `pip install Theano`
   * `pip install Keras`
+  * Go to [MulticoreTSNE GitHub](https://github.com/DmitryUlyanov/Multicore-TSNE) to see further 
+    instructions on how to install the MulticoreTSNE Python package.
 * Deactivate your conda environment
   * `deactivate yourenvname`

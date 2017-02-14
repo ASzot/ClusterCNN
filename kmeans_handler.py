@@ -106,6 +106,7 @@ class KMeansHandler(object):
             if self.should_set_weights[layer_index]:
                 # Chain the output from the previous.
                 ph.disp('Chaining from previous output.')
+
             # Transform the input to the output of the previous layer.
             layer_out = f_prev_out([self.prev_out])[0]
 

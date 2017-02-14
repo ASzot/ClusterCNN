@@ -25,20 +25,17 @@ class DiscriminatoryFilter(object):
         """
 
         ph.disp('Getting sample variances')
-        #sample_variances = [(sample, np.std(sample)) for sample in samples]
 
-        variances = np.std(samples, axis=1)
+        variances = np.var(samples, axis=1)
         sample_variances = list(zip(samples, variances))
 
-        overall_var = np.std(samples)
+        overall_var = np.var(samples)
         overall_avg = np.mean(samples)
-        per_sample_var = np.std(variances)
+        per_sample_var = np.var(variances)
         per_sample_avg = np.mean(variances)
 
-        # Possibly implement a min variance threshold as well?
-        thresh_fact = 0.5
+        thresh_fact = 0.0
         min_variance = per_sample_avg + (thresh_fact * per_sample_var)
-        min_variance = 0.0
 
         ph.disp('STD: %.5f, Avg: %.5f' % (overall_var, overall_avg), ph.OKGREEN)
         ph.disp('Per Sample STD: STD: %.5f, Avg: %.5f' % (per_sample_var, per_sample_avg), ph.OKGREEN)
@@ -49,7 +46,10 @@ class DiscriminatoryFilter(object):
 
         ph.disp(('-' * 5) + 'Filtering input.')
 
-        ph.disp('-----Min variance: %.5f, Select: %.5f%%' % (min_variance, (self.selection_percent * 100.)))
+        use_select_count = True
+        if not use_select_count:
+            ph.disp('-----Min variance: %.5f, Select: %.5f%%' % (min_variance, (self.selection_percent * 100.)))
+
         ph.disp('-----Starting with %i samples' % len(samples))
 
         prev_len = len(variances)
@@ -57,11 +57,15 @@ class DiscriminatoryFilter(object):
         if min_variance != 0.0:
             # Discard due to minimum variance.
             sample_variances = [(sample, variance) for sample, variance in sample_variances
-                    if variance > self.min_variance]
+                    if variance > min_variance]
 
             ph.disp('-----%i samples discarded from min variance' % (prev_len - len(sample_variances)))
 
-        selection_count = int(len(sample_variances) * self.selection_percent)
+        if not use_select_count:
+            selection_count = int(len(sample_variances) * self.selection_percent)
+        else:
+            selection_count = int(self.selection_percent)
+
         ph.disp('-----Trying to select %i samples' % selection_count)
 
         # Order by variance.
