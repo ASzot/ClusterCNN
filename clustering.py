@@ -252,6 +252,7 @@ def load_centroids(filename):
             centroids.append(centroid)
     return np.array(centroids)
 
+g_layer_cn = 0
 
 def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stride,
         filter_shape, k, convolute, filter_params):
@@ -333,9 +334,15 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
     cluster_score = silhouette_score(cluster_vecs, labels, metric = 'cosine', sample_size=sample_size)
     ph.disp('The clustering score is %.3f' % cluster_score, ph.WARNING)
+    global g_layer_cn
 
-    plot_samples(cluster_vecs, centroids, labels)
-    raise ValueError()
+
+    if g_layer_cn == 1:
+        plot_samples(cluster_vecs, centroids, labels)
+        raise ValueError()
+
+
+    g_layer_cn += 1
 
     return centroids
 
