@@ -5,6 +5,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.metrics import pairwise
 import sklearn.preprocessing as preprocessing
+from sklearn.metrics import silhouette_score
 
 from scipy.cluster.vq import whiten
 
@@ -287,7 +288,8 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     # All of these preprocessing steps are very arbitrary.
     # Find the correct preprocessing steps.
     ph.disp('Mean centering cluster vecs')
-    cluster_vecs = preprocessing.scale(cluster_vecs)
+    #cluster_vecs = preprocessing.scale(cluster_vecs)
+    cluster_vecs = [cluster_vec - np.mean(cluster_vec) for cluster_vec in cluster_vecs]
     #cluster_vecs = [preprocessing.scale(cluster_vec) for cluster_vec in cluster_vecs]
     ph.disp('Cluster vecs centered')
 
@@ -298,11 +300,9 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
         cluster_vecs = filter_params.filter_samples(cluster_vecs)
 
     ph.disp('Beginning k - means')
-    is_sparse = issparse(cluster_vecs)
-    print('The cluster vectors are {}'.format(is_sparse))
     centroids, labels = kmeans(cluster_vecs, k, batch_size)
 
-    ph.disp('Mean centering')
+    #ph.disp('Mean centering')
     #centroid_mean = np.mean(centroids)
     #centroids -= centroid_mean
 
@@ -311,11 +311,19 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     #centroids = np.array(centroids)
     #centroids = preprocessing.normalize(centroids, norm='l2')
 
-    plot_samples(cluster_vecs, centroids, labels)
-    raise ValueError()
-
     #centroids = [centroid - np.mean(centroid) for centroid in centroids]
     #centroids = np.array(centroids)
+
+    sample_size = 2000
+
+    cluster_vecs = np.array(cluster_vecs)
+    labels = np.array(labels)
+
+    cluster_score = silhouette_score(cluster_vecs, labels, metric = 'cosine', sample_size=sample_size)
+    ph.disp('The clustering score is %.3f' % cluster_score, ph.WARNING)
+
+    plot_samples(cluster_vecs, centroids, labels)
+    raise ValueError()
 
     return centroids
 

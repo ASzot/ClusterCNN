@@ -8,7 +8,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 from helpers.printhelper import PrintHelper as ph
 import random
 import pickle
-from sklearn.metrics import silhouette_score
 
 
 def plot_samples(samples, anchor_vecs, labels):
@@ -18,13 +17,6 @@ def plot_samples(samples, anchor_vecs, labels):
     tsne_plot_samples = 500
     ndim = 2
     post_normalize = False
-    sample_size = 500
-
-    samples = np.array(samples)
-    labels = np.array(labels)
-
-    cluster_score = silhouette_score(samples, labels, metric = 'cosine', sample_size=sample_size)
-    print('The clustering score is %.3f' % cluster_score)
 
     samples = samples[0:tsne_use_samples]
     labels = labels[0:tsne_use_samples]
