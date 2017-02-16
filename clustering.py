@@ -328,7 +328,7 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     centroids = np.array(centroids)
     centroids = preprocessing.normalize(centroids, norm='l2')
 
-    sample_size = 2000
+    sample_size = 5000
 
     cluster_vecs = np.array(cluster_vecs)
     labels = np.array(labels)
@@ -338,7 +338,7 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     global g_layer_cn
 
 
-    if g_layer_cn == 1:
+    if g_layer_cn == 2:
         plot_samples(cluster_vecs, centroids, labels)
         raise ValueError()
 

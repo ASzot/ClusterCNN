@@ -19,7 +19,7 @@ def plot_samples(samples, anchor_vecs, labels):
     ph.disp('Performing TSNE')
 
     tsne_use_samples = 2000
-    tsne_plot_samples = 500
+    tsne_plot_samples = 900
     ndim = 2
     post_normalize = False
 
@@ -60,9 +60,12 @@ def plot_samples(samples, anchor_vecs, labels):
     ph.disp('Done fitting data')
 
     print('The shape is ' + str(vis_data.shape))
-    all_data = random.sample(list(vis_data), tsne_plot_samples)
-
     ph.disp('There are %i samples to plot' % len(vis_data))
+    if len(vis_data) > tsne_plot_samples:
+        all_data = random.sample(list(vis_data), tsne_plot_samples)
+    else:
+        all_data = list(vis_data)
+
 
     all_data = np.array(all_data)
     all_data = list(zip(all_data, labels))
@@ -90,11 +93,12 @@ def plot_samples(samples, anchor_vecs, labels):
         sampleOfClass = np.array(sampleOfClass)
 
         plot_dimensions = []
-        for dim in range(ndim):
-            plot_dimensions.append(sampleOfClass[:,dim])
+        if len(sampleOfClass.shape) > 1:
+            for dim in range(ndim):
+                plot_dimensions.append(sampleOfClass[:,dim])
 
-        use_plt.scatter(*plot_dimensions, c = colors[colors_index],
-                marker='o')
+            use_plt.scatter(*plot_dimensions, c = colors[colors_index],
+                    marker='o')
 
         colors_map.append(colors[colors_index])
 

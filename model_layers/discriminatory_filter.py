@@ -2,7 +2,7 @@ import numpy as np
 from helpers.printhelper import PrintHelper as ph
 
 class DiscriminatoryFilter(object):
-    CUTOFF = [5000, 5000, 2000, 1000, 500]
+    CUTOFF = [5000, 1000, 2000, 1000, 500]
     cur_layer = 0
     use_select_count = False
 
