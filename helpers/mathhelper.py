@@ -72,7 +72,7 @@ def plot_samples(samples, anchor_vecs, labels):
 
     # Pair each label with a color.
     colors = ['red', 'blue', 'green', 'yellow', 'SaddleBrown', 'black',
-                'MediumTurquoise', 'OrangeRed', 'Violet', 'white']
+                'MediumTurquoise', 'OrangeRed', 'Violet', 'goldenrod']
 
     le = preprocessing.LabelEncoder()
     le.fit(labels)

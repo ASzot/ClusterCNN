@@ -338,9 +338,9 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     global g_layer_cn
 
 
-    if g_layer_cn == 3:
-        plot_samples(cluster_vecs, centroids, labels)
-        raise ValueError()
+    #if g_layer_cn == 4:
+    #    plot_samples(cluster_vecs, centroids, labels)
+    #    raise ValueError()
 
 
     g_layer_cn += 1

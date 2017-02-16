@@ -17,6 +17,7 @@ import numpy as np
 from sklearn.cross_validation import train_test_split
 from sklearn import datasets
 import sklearn.preprocessing as preprocessing
+from scipy.spatial.distance import cosine as cosine_dist
 
 import csv
 import pickle
@@ -440,25 +441,28 @@ class ModelWrapper(object):
 
         self.final_avs = final_fc_anchor_vecs
 
-        def get_closest_vec(search_vec, test_xy):
-            min_dist = 1000000.0
-            min_index = -1
+        def get_closest_vec(search_vec, test_xy, k = 10):
+            min_dists = [1000000.0] * k
+            min_indices = [-1] * k
 
             for i, (test_x, test_y) in enumerate(test_xy):
-                dist = np.linalg.norm(test_x - search_vec)
-                if min_dist > dist:
-                    min_dist = dist
-                    min_index = i
+                dist = cosine_dist(test_x, search_vec)
 
-            if min_index == -1:
-                raise ValueError(('No points in test_xy. There are %i points '
-                                ' in test_xy') % (len(list(test_xy))))
+                for j, min_dist in enumerate(min_dists):
+                    if dist < min_dist:
+                        min_dists[j] = dist
+                        min_indices[j] = i
+                        break
 
-            return min_index
+            #if min_index == -1:
+            #    raise ValueError(('No points in test_xy. There are %i points '
+            #                    ' in test_xy') % (len(list(test_xy))))
+
+            return min_indices
 
         for final_fc_anchor_vec in final_fc_anchor_vecs:
-            i = get_closest_vec(final_fc_anchor_vec, test_xy)
-            yield (self.all_train_x[i], indicies_y[i])
+            indices = get_closest_vec(final_fc_anchor_vec, test_xy)
+            yield [(self.all_train_x[i], indicies_y[i]) for i in indices if i != -1]
 
 
 

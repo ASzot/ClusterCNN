@@ -38,8 +38,9 @@ def get_hyperparams():
     # at layer i. For instance with the below numbers 30% of the max variance samples
     # will be selected at each layer of the network.
     #selection = [0.004, 0.025, 0.3, 0.3, 0.3]
-    selection = [0.004, 0.001, 0.01, 0.008, 0.3]
+    selection = [0.004, 0.001, 0.01, 0.008, 0.008]
     #selection = [5000, 5000, 2000, 1000, 500]
+
 
     # The cluster count is another highly sensitive parameter.
     # The cluster count defines how many of the samples are passed through the
@@ -65,7 +66,7 @@ def get_hyperparams():
         extra_path = '',
         should_set_weights = [True] * 5,
         should_eval = True,
-        remaining = 0,
+        remaining = 200,
         cluster_count = 22000)
 
 
@@ -78,7 +79,7 @@ def single_test():
 
     hyperparams = get_hyperparams()
     hyperparams.extra_path = 'kmeans'
-    model = ModelAnalyzer(hyperparams, force_create=True)
+    model = ModelAnalyzer(hyperparams, force_create=False)
     model.create_model()
     model.eval_performance()
     model.train_model()
@@ -88,24 +89,29 @@ def single_test():
     all_avs = get_anchor_vectors(model)
     final_avs = all_avs[-1]
     similarities = cosine_similarity(final_avs)
-    print_cm(similarities, ['%i' % i for i in range(10)])
+    #print_cm(similarities, ['%i' % i for i in range(10)])
 
     ph.linebreak()
 
-    matching_samples_xy = list(model.get_closest_anchor_vecs())
+    av_matching_samples_xy = list(model.get_closest_anchor_vecs())
+    for matching_samples_xy in av_matching_samples_xy:
+        for x,y in matching_samples_xy:
+            print('----' + str(y))
+        ph.linebreak()
 
-    print('AV |', end='')
-    for i in range(len(matching_samples_xy)):
-        print('%{0}i'.format(4) % i, end='')
-        print('|', end='')
+
+    #print('AV |', end='')
+    #for i in range(len(matching_samples_xy)):
+    #    print('%{0}i'.format(4) % i, end='')
+    #    print('|', end='')
 
 
-    print('')
+    #print('')
 
-    print('Val|', end='')
-    for matching_sample_xy in matching_samples_xy:
-        print('%{0}i'.format(4) % matching_sample_xy[1], end='')
-        print('|', end='')
+    #print('Val|', end='')
+    #for matching_sample_xy in matching_samples_xy:
+    #    print('%{0}i'.format(4) % matching_sample_xy[1], end='')
+    #    print('|', end='')
 
     ph.linebreak()
 

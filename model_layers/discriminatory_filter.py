@@ -1,8 +1,9 @@
 import numpy as np
+import datetime
 from helpers.printhelper import PrintHelper as ph
 
 class DiscriminatoryFilter(object):
-    CUTOFF = [5000, 1000, 166, 3000, 500]
+    CUTOFF = [5000, 1000, 166, 176, 500]
     cur_layer = 0
     use_select_count = False
 
@@ -31,17 +32,17 @@ class DiscriminatoryFilter(object):
         variances = np.var(samples, axis=1)
         sample_variances = list(zip(samples, variances))
 
-        overall_var = np.var(samples)
-        overall_avg = np.mean(samples)
-        per_sample_var = np.var(variances)
+        #overall_var = np.var(samples)
+        #overall_avg = np.mean(samples)
+        per_sample_std = np.std(variances)
         per_sample_avg = np.mean(variances)
 
-        thresh_fact = 0.0
-        min_variance = per_sample_avg + (thresh_fact * per_sample_var)
+        #thresh_fact = 0.0
+        #min_variance = per_sample_avg + (thresh_fact * per_sample_var)
         min_variance = 0.0
 
-        ph.disp('STD: %.5f, Avg: %.5f' % (overall_var, overall_avg), ph.OKGREEN)
-        ph.disp('Per Sample STD: STD: %.5f, Avg: %.5f' % (per_sample_var, per_sample_avg), ph.OKGREEN)
+        #ph.disp('STD: %.5f, Avg: %.5f' % (overall_var, overall_avg), ph.OKGREEN)
+        #ph.disp('Per Sample STD: STD: %.5f, Avg: %.5f' % (per_sample_var, per_sample_avg), ph.OKGREEN)
 
         if self.selection_percent is None:
             ph.disp('Skipping discriminatory filter', ph.FAIL)
@@ -73,7 +74,19 @@ class DiscriminatoryFilter(object):
 
         # Order by variance.
         # Sort with the highest values first.
+        ph.disp('-----Starting sort')
+        start = datetime.datetime.now()
+
+        toss_thresh = per_sample_avg + (per_sample_std * 2)
+        sample_variances = [(sample, variance) for sample, variance in sample_variances if variance > toss_thresh]
+        ph.disp('-----Filtered out values to make sorting easier')
         sample_variances = sorted(sample_variances, key = lambda x: -x[1])
+
+        delta = datetime.datetime.now() - start
+        seconds = delta.seconds
+        microseconds = delta.microseconds % 100
+        ph.disp('-----Sort ended (%s s : %s ms)' % (str(seconds), str(microseconds)))
+
         samples = [sample_variance[0] for sample_variance in sample_variances]
         samples = samples[0:selection_count]
         #self.selection_percent = int(self.selection_percent)
