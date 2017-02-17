@@ -94,7 +94,7 @@ class DiscriminatoryFilter(object):
 
         # An optional cutoff parameter to only select CUTOFF values.
         # For slower computers with not as much RAM and processing power.
-        if (self.CUTOFF is not None) and selection_count > self.CUTOFF[self.cur_layer]:
+        if (self.CUTOFF is not None) and self.CUTOFF[self.cur_layer] is not None and selection_count > self.CUTOFF[self.cur_layer]:
             ph.disp('-----Greater than the cutoff randomly sampling')
             selected_samples = []
             cur_cutoff = self.CUTOFF[self.cur_layer]
