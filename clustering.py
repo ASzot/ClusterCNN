@@ -16,6 +16,7 @@ import csv
 from multiprocessing import Pool
 from multiprocessing import cpu_count
 from functools import partial
+import collections
 
 from helpers.printhelper import PrintHelper as ph
 from helpers.mathhelper import plot_samples
@@ -295,9 +296,6 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
     #cluster_vecs = [preprocessing.scale(cluster_vec) for cluster_vec in cluster_vecs]
 
-    if filter_params is not None:
-        cluster_vecs = filter_params.filter_samples(cluster_vecs)
-
     ph.disp('Mean centering cluster vecs')
 
     #with Pool(processes=cpu_count()) as p:
@@ -312,14 +310,53 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     ph.disp('Normalizing')
     cluster_vecs = preprocessing.normalize(cluster_vecs, norm='l2')
 
-    ph.disp('Beginning k - means')
-    centroids, labels = kmeans(cluster_vecs, k, batch_size)
+    #if filter_params is not None:
+    #    cluster_vecs = filter_params.filter_samples(cluster_vecs)
+
+    cluster_vecs = filter_params.get_sorted(cluster_vecs)
+
+    global g_layer_cn
+    max_cluster_score = -1.0
+    max_centroids = []
+    all_cluster_counts = [10000, 10000, 2000, 2000, 2000]
+    layer_inc = [2000, 2000, 1000, 1000, 1000]
+    layer_max = [50000, 50000, 28000, 28000, 28000]
+
+    cur_cluster_count = all_cluster_counts[g_layer_cn]
+    cur_cluster_inc = layer_inc[g_layer_cn]
+    cur_layer_max = layer_max[g_layer_cn]
+
+    while cur_cluster_count < cur_layer_max and cur_cluster_count < len(cluster_vecs):
+        tmp_cluster_vecs = cluster_vecs[0:cur_cluster_count]
+        centroids, labels = kmeans(tmp_cluster_vecs, k, batch_size)
+        cluster_vecs = np.array(cluster_vecs)
+        labels = np.array(labels)
+
+        sample_size = 5000
+        cluster_score = silhouette_score(cluster_vecs, labels, metric = 'cosine', sample_size=sample_size)
+
+        ph.disp('Layer %i) %i / %i vecs' % (g_layer_cn, cur_cluster_count, cur_layer_max))
+
+        counter = collections.Counter(labels)
+        counter_vals = list(counter.values())
+        counter_avg = np.mean(counter_vals)
+        counter_std = np.std(counter_vals)
+        counter_min = np.amin(counter_vals)
+        counter_max = np.amax(counter_vals)
+
+        with open('data/ss_kmeans.txt', 'a') as ss_log:
+            ss_log.write('%i, %i, %.6f, %.5f, %.5f, %.5f, %.5f\n' % (g_layer_cn, cur_cluster_count,
+                cluster_score, counter_avg, counter_std, counter_min, counter_max))
+
+        if max_cluster_score < cluster_score:
+            max_cluster_score = cluster_score
+            max_centroids = centroids
+
+        cur_cluster_count += cur_cluster_inc
+
+    centroids = max_centroids
 
     ph.disp('Mean centering anchor vectors')
-    #centroid_mean = np.mean(centroids)
-    #centroids -= centroid_mean
-
-    #centroids = [preprocessing.scale(centroid) for centroid in centroids]
     centroids = preprocessing.scale(centroids)
 
     centroids = [centroid - np.mean(centroid) for centroid in centroids]
@@ -327,21 +364,6 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
     centroids = np.array(centroids)
     centroids = preprocessing.normalize(centroids, norm='l2')
-
-    sample_size = 5000
-
-    cluster_vecs = np.array(cluster_vecs)
-    labels = np.array(labels)
-
-    cluster_score = silhouette_score(cluster_vecs, labels, metric = 'cosine', sample_size=sample_size)
-    ph.disp('The clustering score is %.3f' % cluster_score, ph.WARNING)
-    global g_layer_cn
-
-
-    #if g_layer_cn == 1:
-    #    plot_samples(cluster_vecs, centroids, labels)
-    #    raise ValueError()
-
 
     g_layer_cn += 1
 
