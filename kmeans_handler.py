@@ -119,8 +119,11 @@ class KMeansHandler(object):
 
         # If the anchor vectors should be calculated calculate them.
         if self.should_set_weights[layer_index]:
-            #force_create = layer_index == 4
-            tmp_centroids = load_or_create_centroids(self.force_create, self.centroids_out_loc +
+
+            should_force_create = [False, False, True, True, True]
+            force_create = should_force_create[layer_index]
+
+            tmp_centroids = load_or_create_centroids(force_create, self.centroids_out_loc +
                 save_name + '.csv', self.batch_size, layer_out, input_shape, self.subsample,
                 self.filter_size, k, self.filter_params, convolute=convolute)
 

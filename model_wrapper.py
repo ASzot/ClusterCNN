@@ -465,7 +465,6 @@ class ModelWrapper(object):
             yield [(self.all_train_x[i], indicies_y[i]) for i in indices if i != -1]
 
 
-
     def __fetch_data(self, test_size, use_amount=None):
         """
         Get the data and select the correct amount of it.

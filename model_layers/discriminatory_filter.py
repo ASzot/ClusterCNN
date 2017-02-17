@@ -3,8 +3,8 @@ import datetime
 from helpers.printhelper import PrintHelper as ph
 
 class DiscriminatoryFilter(object):
-    CUTOFF = [5000, 1000, 166, 176, 500]
-    cur_layer = 0
+    CUTOFF = [5000, 176, 135, 176, 500]
+    cur_layer = 2
     use_select_count = False
 
     def __init__(self, selection_percent = None):
@@ -94,7 +94,8 @@ class DiscriminatoryFilter(object):
 
         # An optional cutoff parameter to only select CUTOFF values.
         # For slower computers with not as much RAM and processing power.
-        if (self.CUTOFF is not None) and self.CUTOFF[self.cur_layer] is not None and selection_count > self.CUTOFF[self.cur_layer]:
+        ph.disp('The current cutoff is ' + str(self.CUTOFF[self.cur_layer]))
+        if (self.CUTOFF is not None) and (self.CUTOFF[self.cur_layer] is not None) and selection_count > self.CUTOFF[self.cur_layer]:
             ph.disp('-----Greater than the cutoff randomly sampling')
             selected_samples = []
             cur_cutoff = self.CUTOFF[self.cur_layer]

@@ -38,7 +38,7 @@ def get_hyperparams():
     # at layer i. For instance with the below numbers 30% of the max variance samples
     # will be selected at each layer of the network.
     #selection = [0.004, 0.001, 0.01, 0.008, 0.008]
-    selection = [0.0009, 0.001, 0.01, 0.008, 0.008]
+    selection = [0.0009, 0.0003, 0.005, 0.008, 0.008]
 
     # The cluster count is another highly sensitive parameter.
     # The cluster count defines how many of the samples are passed through the
@@ -66,7 +66,7 @@ def get_hyperparams():
         should_eval = True,
         remaining = 0,
         # 22000 is the minimum number needed to run.
-        cluster_count = 22000)
+        cluster_count = 30000)
 
 
 
@@ -92,11 +92,11 @@ def single_test():
 
     ph.linebreak()
 
-    av_matching_samples_xy = list(model.get_closest_anchor_vecs())
-    for matching_samples_xy in av_matching_samples_xy:
-        for x,y in matching_samples_xy:
-            print('----' + str(y))
-        ph.linebreak()
+    #av_matching_samples_xy = list(model.get_closest_anchor_vecs())
+    #for matching_samples_xy in av_matching_samples_xy:
+    #    for x,y in matching_samples_xy:
+    #        print('----' + str(y))
+    #    ph.linebreak()
 
 
     #print('AV |', end='')
