@@ -318,9 +318,9 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     global g_layer_cn
     max_cluster_score = -1.0
     max_centroids = []
-    all_cluster_counts = [10000, 10000, 2000, 2000, 2000]
+    all_cluster_counts = [5000, 5000, 1000, 1000, 1000]
     layer_inc = [2000, 2000, 1000, 1000, 1000]
-    layer_max = [50000, 50000, 28000, 28000, 28000]
+    layer_max = [50000, 50000, 48000, 48000, 48000]
 
     cur_cluster_count = all_cluster_counts[g_layer_cn]
     cur_cluster_inc = layer_inc[g_layer_cn]
@@ -329,11 +329,11 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     while cur_cluster_count < cur_layer_max and cur_cluster_count < len(cluster_vecs):
         tmp_cluster_vecs = cluster_vecs[0:cur_cluster_count]
         centroids, labels = kmeans(tmp_cluster_vecs, k, batch_size)
-        cluster_vecs = np.array(cluster_vecs)
+        tmp_cluster_vecs = np.array(tmp_cluster_vecs)
         labels = np.array(labels)
 
         sample_size = 5000
-        cluster_score = silhouette_score(cluster_vecs, labels, metric = 'cosine', sample_size=sample_size)
+        cluster_score = silhouette_score(tmp_cluster_vecs, labels, metric = 'cosine', sample_size=sample_size)
 
         ph.disp('Layer %i) %i / %i vecs' % (g_layer_cn, cur_cluster_count, cur_layer_max))
 
@@ -396,3 +396,4 @@ def load_or_create_centroids(force_create, filename, batch_size, data_set_x,
         save_centroids(centroids, filename)
 
     return centroids
+

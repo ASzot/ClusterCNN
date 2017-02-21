@@ -66,7 +66,7 @@ def get_hyperparams():
         should_eval = True,
         remaining = 0,
         # 22000 is the minimum number needed to run.
-        cluster_count = 30000)
+        cluster_count = 50000)
 
 
 
