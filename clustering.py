@@ -27,6 +27,8 @@ from spherecluster import SphericalKMeans
 from spherecluster import VonMisesFisherMixture
 from scipy.sparse import issparse
 
+import matplotlib.pyplot as plt
+
 
 def kmeans(input_data, k, batch_size, metric='sp'):
     """
@@ -261,40 +263,55 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     The entry point for creating the centroids for input samples for a given layer.
     """
 
-    ph.disp('- Building centroids')
+    #if filter_params is not None:
+    #    cluster_vecs = filter_params.filter_samples(cluster_vecs)
+    global g_layer_cn
 
-    # Do we need to build the image patches because we are in a convolution layer?
-    if convolute:
-        ph.disp('--Building patch vecs from %i vectors' % len(train_set_x))
-        cluster_vecs = build_patch_vecs(train_set_x, input_shape, stride, filter_shape)
-    else:
-        # Flatten the input.
-        train_set_x = np.array(train_set_x)
-        sp = train_set_x.shape
+    cluster_counts = [25000, 40000, 30000, 30000, 30000]
 
-        # Not garunteed to be 3 dimensions as the input will be flattened.
-        # This is different than performing the convolution where it has to be 3 dimensional.
+    cur_cluster_count = cluster_counts[g_layer_cn]
 
-        input_shape_prod = 1.0
-        for input_shape_dim in input_shape:
-            input_shape_prod = input_shape_prod * input_shape_dim
-        cluster_vecs = train_set_x.reshape(sp[0], int(input_shape_prod))
+    try:
+        with open('data/tmp/f%itmp.dat' % g_layer_cn, 'rb') as f:
+            cluster_vecs = pickle.load(f)
+    except IOError:
+        ph.disp('- Building centroids')
 
-    cluster_vecs = np.array(cluster_vecs, dtype='float32')
+        # Do we need to build the image patches because we are in a convolution layer?
+        if convolute:
+            ph.disp('--Building patch vecs from %i vectors' % len(train_set_x))
+            cluster_vecs = build_patch_vecs(train_set_x, input_shape, stride, filter_shape)
+            print(cluster_vecs.shape)
+        else:
+            # Flatten the input.
+            train_set_x = np.array(train_set_x)
+            sp = train_set_x.shape
 
-    if raw_save_loc != '':
-        ph.disp('Saving image patches')
-        with open(raw_save_loc, 'wb') as f:
-            csvwriter = csv.writer(f)
-            for cluster_vec in cluster_vecs:
-                csvwriter.writerow(cluster_vec)
+            # Not garunteed to be 3 dimensions as the input will be flattened.
+            # This is different than performing the convolution where it has to be 3 dimensional.
 
-    #TODO:
-    # All of these preprocessing steps are very arbitrary.
-    # Find the correct preprocessing steps.
-    #cluster_vecs = preprocessing.scale(cluster_vecs)
+            input_shape_prod = 1.0
+            for input_shape_dim in input_shape:
+                input_shape_prod = input_shape_prod * input_shape_dim
+            cluster_vecs = train_set_x.reshape(sp[0], int(input_shape_prod))
 
-    #cluster_vecs = [preprocessing.scale(cluster_vec) for cluster_vec in cluster_vecs]
+        cluster_vecs = np.array(cluster_vecs, dtype='float32')
+
+        if raw_save_loc != '':
+            ph.disp('Saving image patches')
+            with open(raw_save_loc, 'wb') as f:
+                csvwriter = csv.writer(f)
+                for cluster_vec in cluster_vecs:
+                    csvwriter.writerow(cluster_vec)
+
+        #TODO:
+        # All of these preprocessing steps are very arbitrary.
+        # Find the correct preprocessing steps.
+
+        cluster_vecs = filter_params.get_sorted(cluster_vecs)
+        cluster_vecs = cluster_vecs[0:cur_cluster_count]
+        with open('data/tmp/f%itmp.dat' % g_layer_cn, 'wb') as f:
+            pickle.dump(cluster_vecs, f)
 
     ph.disp('Mean centering cluster vecs')
 
@@ -310,59 +327,30 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     ph.disp('Normalizing')
     cluster_vecs = preprocessing.normalize(cluster_vecs, norm='l2')
 
-    #if filter_params is not None:
-    #    cluster_vecs = filter_params.filter_samples(cluster_vecs)
+    centroids, labels = kmeans(cluster_vecs, k, batch_size)
+    cluster_vecs = np.array(cluster_vecs)
+    labels = np.array(labels)
 
-    cluster_vecs = filter_params.get_sorted(cluster_vecs)
+    sample_size = 5000
+    cluster_score = silhouette_score(cluster_vecs, labels, metric = 'cosine', sample_size=sample_size)
 
-    global g_layer_cn
-    max_cluster_score = -1.0
-    max_centroids = []
-    all_cluster_counts = [5000, 5000, 1000, 1000, 1000]
-    layer_inc = [2000, 2000, 1000, 1000, 1000]
-    layer_max = [50000, 50000, 48000, 48000, 48000]
+    counter = collections.Counter(labels)
+    counter_vals = list(counter.values())
+    counter_avg = np.mean(counter_vals)
+    counter_std = np.std(counter_vals)
+    counter_min = np.amin(counter_vals)
+    counter_max = np.amax(counter_vals)
 
-    cur_cluster_count = all_cluster_counts[g_layer_cn]
-    cur_cluster_inc = layer_inc[g_layer_cn]
-    cur_layer_max = layer_max[g_layer_cn]
-
-    while cur_cluster_count < cur_layer_max and cur_cluster_count < len(cluster_vecs):
-        tmp_cluster_vecs = cluster_vecs[0:cur_cluster_count]
-        centroids, labels = kmeans(tmp_cluster_vecs, k, batch_size)
-        tmp_cluster_vecs = np.array(tmp_cluster_vecs)
-        labels = np.array(labels)
-
-        sample_size = 5000
-        cluster_score = silhouette_score(tmp_cluster_vecs, labels, metric = 'cosine', sample_size=sample_size)
-
-        ph.disp('Layer %i) %i / %i vecs' % (g_layer_cn, cur_cluster_count, cur_layer_max))
-
-        counter = collections.Counter(labels)
-        counter_vals = list(counter.values())
-        counter_avg = np.mean(counter_vals)
-        counter_std = np.std(counter_vals)
-        counter_min = np.amin(counter_vals)
-        counter_max = np.amax(counter_vals)
-
-        with open('data/ss_kmeans.txt', 'a') as ss_log:
-            ss_log.write('%i, %i, %.6f, %.5f, %.5f, %.5f, %.5f\n' % (g_layer_cn, cur_cluster_count,
-                cluster_score, counter_avg, counter_std, counter_min, counter_max))
-
-        if max_cluster_score < cluster_score:
-            max_cluster_score = cluster_score
-            max_centroids = centroids
-
-        cur_cluster_count += cur_cluster_inc
-
-    centroids = max_centroids
+    ph.disp('SH:       ' + str(cluster_score), ph.FAIL)
+    ph.disp('Count Avg ' + str(counter_avg), ph.FAIL)
+    ph.disp('Count STD ' + str(counter_std), ph.FAIL)
 
     ph.disp('Mean centering anchor vectors')
     centroids = preprocessing.scale(centroids)
 
-    centroids = [centroid - np.mean(centroid) for centroid in centroids]
-    centroids = np.array(centroids)
+    #centroids = [centroid - np.mean(centroid) for centroid in centroids]
+    #centroids = np.array(centroids)
 
-    centroids = np.array(centroids)
     centroids = preprocessing.normalize(centroids, norm='l2')
 
     g_layer_cn += 1

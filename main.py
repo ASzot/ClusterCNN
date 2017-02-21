@@ -78,7 +78,7 @@ def single_test():
 
     hyperparams = get_hyperparams()
     hyperparams.extra_path = 'kmeans'
-    model = ModelAnalyzer(hyperparams, force_create=False)
+    model = ModelAnalyzer(hyperparams, force_create=True)
     model.create_model()
     model.eval_performance()
     model.train_model()
