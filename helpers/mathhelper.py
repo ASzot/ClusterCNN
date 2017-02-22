@@ -43,13 +43,13 @@ def plot_samples(samples, anchor_vecs, labels):
     # normalize all of the input vectors.
     #all_data = preprocessing.normalize(all_data)
 
-    transformed_all_data = tsne_model.fit_transform(all_data)
+    #transformed_all_data = tsne_model.fit_transform(all_data)
 
-    with open('data/vis_data/asdf.h5', 'wb') as f:
-        pickle.dump(transformed_all_data, f)
+    #with open('data/vis_data/asdf.h5', 'wb') as f:
+    #    pickle.dump(transformed_all_data, f)
 
-    #with open('data/vis_data/asdf.h5', 'rb') as f:
-    #    transformed_all_data = pickle.load(f)
+    with open('data/vis_data/asdf.h5', 'rb') as f:
+        transformed_all_data = pickle.load(f)
 
     av_count = len(anchor_vecs)
     if post_normalize:
@@ -115,7 +115,12 @@ def plot_samples(samples, anchor_vecs, labels):
         for dim in range(ndim):
             av_comps.append(av[dim] * t_vals)
 
-        use_plt.plot(*av_comps, linewidth=2.0, color=colors_map[i])
+        if len(colors_map) <= i:
+            use_color = 'black'
+        else:
+            use_color = colors_map[i]
+
+        use_plt.plot(*av_comps, linewidth=2.0, color=use_color)
 
     print('There are {} anchor vectors'.format(len(plot_avs)))
 

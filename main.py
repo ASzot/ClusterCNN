@@ -56,7 +56,7 @@ def get_hyperparams():
         filter_size=(5,5),
         batch_size = 5,
         nkerns = (6,16),
-        fc_sizes = (120, 84, 10,),
+        fc_sizes = (128, 84, 10,),
         n_epochs = 10,
         selection_percentages = selection,
         use_filters = (True, True, True, True, True),
@@ -65,7 +65,6 @@ def get_hyperparams():
         should_set_weights = [True] * 5,
         should_eval = True,
         remaining = 0,
-        # 22000 is the minimum number needed to run.
         cluster_count = 50000)
 
 

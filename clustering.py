@@ -41,7 +41,7 @@ def kmeans(input_data, k, batch_size, metric='sp'):
     :returns: The cluster centers.
     """
 
-    ph.disp('Performing %s kmeans on %i vectors' % (metric, len(input_data)), ph.OKBLUE)
+    ph.disp('Performing %s kmeans on %i vectors %s' % (metric, len(input_data), input_data.shape), ph.OKBLUE)
 
     # Check that there are actually enough samples to perform k-means
     if (k > len(input_data) or batch_size > len(input_data)):
@@ -209,8 +209,8 @@ def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
     # This will be a 3D array
     # (# samples, # patches per sample, # flattened filter size dimension)
     patch_vecs_shape = patch_vecs.shape
-    patch_vecs = patch_vecs.reshape(patch_vecs_shape[0] * patch_vecs_shape[1],
-            patch_vecs_shape[2] * patch_vecs_shape[3])
+    patch_vecs = patch_vecs.reshape(patch_vecs_shape[2], patch_vecs_shape[0] * patch_vecs_shape[1],
+            patch_vecs_shape[3])
     print('----Reshaped patch vecs shape ' + str(patch_vecs.shape))
 
     # The not parralel version of the code above.
@@ -255,7 +255,26 @@ def load_centroids(filename):
             centroids.append(centroid)
     return np.array(centroids)
 
-g_layer_cn = 0
+
+def apply_kmeans(layer_cluster_vecs, k, batch_size):
+    layer_cluster_vecs = preprocessing.scale(layer_cluster_vecs)
+    layer_cluster_vecs = preprocessing.normalize(layer_cluster_vecs, norm='l2')
+    layer_centroids, labels = kmeans(layer_cluster_vecs, k, batch_size)
+
+    labels = np.array(labels)
+    #plot_samples(layer_cluster_vecs, layer_centroids, labels)
+    sample_size = 5000
+    cluster_score = silhouette_score(layer_cluster_vecs, labels, metric = 'cosine', sample_size=sample_size)
+
+    ph.disp('SH: ' + str(cluster_score))
+
+    layer_centroids = preprocessing.scale(layer_centroids)
+    layer_centroids = preprocessing.normalize(layer_centroids, norm='l2')
+
+    return layer_centroids
+
+
+g_layer_cn = 2
 
 def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stride,
         filter_shape, k, convolute, filter_params):
@@ -267,91 +286,62 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     #    cluster_vecs = filter_params.filter_samples(cluster_vecs)
     global g_layer_cn
 
-    cluster_counts = [25000, 40000, 30000, 30000, 30000]
+    cluster_counts = [25000, 25000, 10000, 5000, 5000]
 
     cur_cluster_count = cluster_counts[g_layer_cn]
 
-    try:
-        with open('data/tmp/f%itmp.dat' % g_layer_cn, 'rb') as f:
-            cluster_vecs = pickle.load(f)
-    except IOError:
-        ph.disp('- Building centroids')
+    ph.disp('- Building centroids')
 
-        # Do we need to build the image patches because we are in a convolution layer?
-        if convolute:
-            ph.disp('--Building patch vecs from %i vectors' % len(train_set_x))
-            cluster_vecs = build_patch_vecs(train_set_x, input_shape, stride, filter_shape)
-            print(cluster_vecs.shape)
-        else:
-            # Flatten the input.
-            train_set_x = np.array(train_set_x)
-            sp = train_set_x.shape
+    # Do we need to build the image patches because we are in a convolution layer?
+    if convolute:
+        ph.disp('--Building patch vecs from %i vectors' % len(train_set_x))
+        cluster_vecs = build_patch_vecs(train_set_x, input_shape, stride, filter_shape)
+    else:
+        # Flatten the input.
+        train_set_x = np.array(train_set_x)
+        sp = train_set_x.shape
 
-            # Not garunteed to be 3 dimensions as the input will be flattened.
-            # This is different than performing the convolution where it has to be 3 dimensional.
+        # Not garunteed to be 3 dimensions as the input will be flattened.
+        # This is different than performing the convolution where it has to be 3 dimensional.
 
-            input_shape_prod = 1.0
-            for input_shape_dim in input_shape:
-                input_shape_prod = input_shape_prod * input_shape_dim
-            cluster_vecs = train_set_x.reshape(sp[0], int(input_shape_prod))
+        input_shape_prod = 1.0
+        for input_shape_dim in input_shape:
+            input_shape_prod = input_shape_prod * input_shape_dim
+        # Wrap in another dimension.
+        cluster_vecs = train_set_x.reshape(1, sp[0], int(input_shape_prod))
 
-        cluster_vecs = np.array(cluster_vecs, dtype='float32')
+    cluster_vecs = np.array(cluster_vecs, dtype='float32')
 
-        if raw_save_loc != '':
-            ph.disp('Saving image patches')
-            with open(raw_save_loc, 'wb') as f:
-                csvwriter = csv.writer(f)
-                for cluster_vec in cluster_vecs:
-                    csvwriter.writerow(cluster_vec)
+    if raw_save_loc != '':
+        ph.disp('Saving image patches')
+        with open(raw_save_loc, 'wb') as f:
+            csvwriter = csv.writer(f)
+            for cluster_vec in cluster_vecs:
+                csvwriter.writerow(cluster_vec)
 
-        #TODO:
-        # All of these preprocessing steps are very arbitrary.
-        # Find the correct preprocessing steps.
+    centroids = []
 
-        cluster_vecs = filter_params.get_sorted(cluster_vecs)
-        cluster_vecs = cluster_vecs[0:cur_cluster_count]
-        with open('data/tmp/f%itmp.dat' % g_layer_cn, 'wb') as f:
-            pickle.dump(cluster_vecs, f)
+    cvs = cluster_vecs.shape
+    cluster_vecs = cluster_vecs.reshape(cvs[1], cvs[0] * cvs[2])
+    cluster_vecs = filter_params.get_sorted(cluster_vecs)
 
-    ph.disp('Mean centering cluster vecs')
-
-    #with Pool(processes=cpu_count()) as p:
-    #    cluster_vecs = p.map(subtract_mean, cluster_vecs)
-
-    cluster_vecs = preprocessing.scale(cluster_vecs)
-
-    ph.disp('Cluster vecs centered')
-
+    cluster_vecs = cluster_vecs[0:cur_cluster_count]
     cluster_vecs = np.array(cluster_vecs)
 
-    ph.disp('Normalizing')
-    cluster_vecs = preprocessing.normalize(cluster_vecs, norm='l2')
+    cluster_vecs = np.array(list(filter_params.filter_outliers(cluster_vecs)))
 
-    centroids, labels = kmeans(cluster_vecs, k, batch_size)
-    cluster_vecs = np.array(cluster_vecs)
-    labels = np.array(labels)
+    cluster_vecs = cluster_vecs.reshape(cvs[0], -1, cvs[2])
 
-    sample_size = 5000
-    cluster_score = silhouette_score(cluster_vecs, labels, metric = 'cosine', sample_size=sample_size)
+    for layer_cluster_vecs in cluster_vecs:
+        layer_centroids = apply_kmeans(layer_cluster_vecs, k, batch_size)
 
-    counter = collections.Counter(labels)
-    counter_vals = list(counter.values())
-    counter_avg = np.mean(counter_vals)
-    counter_std = np.std(counter_vals)
-    counter_min = np.amin(counter_vals)
-    counter_max = np.amax(counter_vals)
+        centroids.append(layer_centroids)
 
-    ph.disp('SH:       ' + str(cluster_score), ph.FAIL)
-    ph.disp('Count Avg ' + str(counter_avg), ph.FAIL)
-    ph.disp('Count STD ' + str(counter_std), ph.FAIL)
+    centroids = np.array(centroids)
+    cs = centroids.shape
 
-    ph.disp('Mean centering anchor vectors')
-    centroids = preprocessing.scale(centroids)
-
-    #centroids = [centroid - np.mean(centroid) for centroid in centroids]
-    #centroids = np.array(centroids)
-
-    centroids = preprocessing.normalize(centroids, norm='l2')
+    centroids = centroids.reshape(-1, cs[0] * cs[2])
+    ph.disp('Centroids now have shape %s' % str(centroids.shape))
 
     g_layer_cn += 1
 

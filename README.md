@@ -41,3 +41,18 @@ the installer for Anaconda [here](https://www.continuum.io/downloads).
     instructions on how to install the MulticoreTSNE Python package.
 * Deactivate your conda environment
   * `deactivate yourenvname`
+
+##K-Means
+The effectiveness of the clustering can be determined via the silhouette score.
+
+0.71-1.0
+A strong structure has been found
+
+0.51-0.70
+A reasonable structure has been found
+
+0.26-0.50
+The structure is weak and could be artificial
+
+< 0.25
+No substantial structure has been found

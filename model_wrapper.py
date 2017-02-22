@@ -8,6 +8,7 @@ from keras import backend as K
 from keras.models import load_model
 from keras.optimizers import SGD
 from keras.utils import np_utils
+from keras.utils.visualize_util import plot as keras_plot
 
 from helpers.printhelper import PrintHelper as ph
 from model_layers.discriminatory_filter import DiscriminatoryFilter
@@ -175,6 +176,7 @@ class ModelWrapper(object):
 
 
     def train_model(self):
+        keras_plot(self.model, to_file='data/model.png', show_shapes=True)
         """
         Train the model the number of samples specified by
         the 'remaining' hyperparameter.
@@ -197,9 +199,6 @@ class ModelWrapper(object):
         Test and print the accuracy of the model.
         """
         batch_size            = self.hyperparams.batch_size
-        # Just use 1,000 test samples for now.
-        self.all_test_x = self.all_test_x[0:1000]
-        self.all_test_y = self.all_test_y[0:1000]
         (loss, accuracy) = self.model.evaluate(self.all_test_x, self.all_test_y,
                 batch_size=batch_size, verbose=ph.DISP)
 
@@ -230,11 +229,14 @@ class ModelWrapper(object):
 
             conv_layer.set_weights([weights, bias])
 
-        max_pooling_out = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))
+
         activation_layer = Activation(activation_func)
 
-        model.add(max_pooling_out)
         model.add(activation_layer)
+
+        max_pooling_out = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))
+
+        model.add(max_pooling_out)
 
         if flatten:
             ph.disp('Flattening output')

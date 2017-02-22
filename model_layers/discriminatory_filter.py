@@ -1,6 +1,8 @@
 import numpy as np
 import datetime
 from helpers.printhelper import PrintHelper as ph
+from sklearn.ensemble import IsolationForest
+
 
 class DiscriminatoryFilter(object):
     # 0.14 actual
@@ -17,6 +19,17 @@ class DiscriminatoryFilter(object):
         the percentage of elements sorted by variance to return.
         """
         self.selection_percent = selection_percent
+
+
+    def filter_outliers(self, samples):
+        ph.disp('Filtering out outliers')
+        clf = IsolationForest(max_samples=5000, n_estimators = 500, n_jobs=-1)
+        clf.fit(samples)
+        samples_pred = clf.predict(samples)
+
+        for sample, is_outlier in zip(samples, samples_pred):
+            if is_outlier == 1:
+                yield sample
 
 
     def get_sorted(self, samples):
