@@ -15,7 +15,7 @@ def subtract_mean(cluster_vec):
     return cluster_vec - np.mean(cluster_vec)
 
 
-def plot_samples(samples, anchor_vecs, labels):
+def plot_samples(samples, anchor_vecs, labels, show_plt=None):
     ph.disp('Performing TSNE')
 
     tsne_use_samples = 2000
@@ -27,9 +27,9 @@ def plot_samples(samples, anchor_vecs, labels):
     labels = labels[0:tsne_use_samples]
 
     if ndim == 2:
-        tsne_model = MultiCoreTSNE(n_jobs=cpu_count())
+        tsne_model = MultiCoreTSNE(metric = 'cosine', n_jobs=cpu_count())
     else:
-        tsne_model = TSNE(n_components=3, verbose=True)
+        tsne_model = TSNE(n_components=3, metric='cosine', verbose=True)
 
     flattened_x = [np.array(sample).flatten() for sample in samples]
     samples = np.array(samples)
@@ -82,7 +82,10 @@ def plot_samples(samples, anchor_vecs, labels):
         ax = fig.add_subplot(111, projection='3d')
         use_plt = ax
     elif ndim == 2:
-        use_plt = plt
+        if show_plt is not None:
+            use_plt = show_plt
+        else:
+            use_plt = plt
     else:
         raise ValueError('Invalid number of dimensions')
 
@@ -124,7 +127,8 @@ def plot_samples(samples, anchor_vecs, labels):
 
     print('There are {} anchor vectors'.format(len(plot_avs)))
 
-    plt.show()
+    if show_plt is None:
+        plt.show()
 
 
 

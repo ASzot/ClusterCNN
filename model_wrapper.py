@@ -397,7 +397,7 @@ class ModelWrapper(object):
         return np.array(list(convert_index_to_onehot(mapped_inc_y_vals, 10)))
 
 
-    def get_closest_anchor_vecs(self):
+    def get_closest_anchor_vecs(self, k):
         """
         Get the closest sample to each anchor vector.
         Return the closest sample and the number it corresponds to.
@@ -405,6 +405,8 @@ class ModelWrapper(object):
         :returns: A generator producing the sample closest to anchor vector i
         and the value the sample corresponds to.
         """
+
+        ph.disp('Getting closest %i samples to each anchor vector' % k)
 
         # Convert the one hot vectors to the actual numeric value.
         indicies_y = convert_onehot_to_index(self.all_train_y)
@@ -463,7 +465,7 @@ class ModelWrapper(object):
             return min_indices
 
         for final_fc_anchor_vec in final_fc_anchor_vecs:
-            indices = get_closest_vec(final_fc_anchor_vec, test_xy)
+            indices = get_closest_vec(final_fc_anchor_vec, test_xy, k = k)
             yield [(self.all_train_x[i], indicies_y[i]) for i in indices if i != -1]
 
 

@@ -31,6 +31,8 @@ class DiscriminatoryFilter(object):
             if is_outlier == 1:
                 yield sample
 
+        ph.disp('Outliers filtered')
+
 
     def get_sorted(self, samples):
         variances = np.var(samples, axis=1)

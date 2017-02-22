@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pickle
 import numpy as np
 import random
+import os
 
 from sklearn.manifold import TSNE
 import sklearn.preprocessing as preprocessing
@@ -19,8 +20,12 @@ from helpers.hyper_params import HyperParamData
 from helpers.hyper_param_search import HyperParamSearch
 from helpers.printhelper import PrintHelper as ph
 
+from add_trainer import AddTrainer
+
 from model_analyzer import ModelAnalyzer
 from helpers.printhelper import print_cm
+
+import uuid
 
 def get_hyperparams():
     """
@@ -56,7 +61,7 @@ def get_hyperparams():
         filter_size=(5,5),
         batch_size = 5,
         nkerns = (6,16),
-        fc_sizes = (128, 84, 10,),
+        fc_sizes = (180, 84, 10,),
         n_epochs = 10,
         selection_percentages = selection,
         use_filters = (True, True, True, True, True),
@@ -77,24 +82,35 @@ def single_test():
 
     hyperparams = get_hyperparams()
     hyperparams.extra_path = 'kmeans'
-    model = ModelAnalyzer(hyperparams, force_create=True)
+    model = ModelAnalyzer(hyperparams, force_create=False)
     model.create_model()
     model.eval_performance()
     model.train_model()
     model.test_model()
     model.post_eval()
 
-    all_avs = get_anchor_vectors(model)
-    final_avs = all_avs[-1]
-    similarities = cosine_similarity(final_avs)
+    add_trainer = AddTrainer(model)
+    add_trainer.identify_clusters()
+
+    #all_avs = get_anchor_vectors(model)
+    #final_avs = all_avs[-1]
+    #similarities = cosine_similarity(final_avs)
     #print_cm(similarities, ['%i' % i for i in range(10)])
 
-    ph.linebreak()
+    #ph.linebreak()
 
-    #av_matching_samples_xy = list(model.get_closest_anchor_vecs())
-    #for matching_samples_xy in av_matching_samples_xy:
+    #av_matching_samples_xy = model.get_closest_anchor_vecs()
+    #for i, matching_samples_xy in enumerate(av_matching_samples_xy):
+    #    data_dir = 'data/matching_avs/av%i/' % (i)
+    #    if not os.path.exists(data_dir):
+    #        os.makedirs(data_dir)
     #    for x,y in matching_samples_xy:
     #        print('----' + str(y))
+    #        x = x.reshape(x.shape[1], x.shape[2])
+    #        plt.imshow(x, cmap='gray')
+    #        plt.savefig(data_dir + str(uuid.uuid4()))
+    #        plt.clf()
+
     #    ph.linebreak()
 
 

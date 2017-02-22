@@ -6,6 +6,7 @@ from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.metrics import pairwise
 import sklearn.preprocessing as preprocessing
 from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_samples
 
 from scipy.cluster.vq import whiten
 
@@ -28,6 +29,7 @@ from spherecluster import VonMisesFisherMixture
 from scipy.sparse import issparse
 
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 
 def kmeans(input_data, k, batch_size, metric='sp'):
@@ -256,6 +258,40 @@ def load_centroids(filename):
     return np.array(centroids)
 
 
+def plot_silhouette_scores(cluster_score, samples_scores, should_plot=False):
+    fig, (ax1, ax2) = plt.subplots(1, 2)
+
+    y_lower = 10
+    for i in range(k):
+        # Aggregate the silhouette scores for samples belonging to
+        # cluster i, and sort them
+        ith_cluster_silhouette_values = samples_scores[labels == i]
+
+        ith_cluster_silhouette_values.sort()
+
+        size_cluster_i = ith_cluster_silhouette_values.shape[0]
+        y_upper = y_lower + size_cluster_i
+
+        color = cm.spectral(float(i) / k)
+        ax1.fill_betweenx(np.arange(y_lower, y_upper),
+                0, ith_cluster_silhouette_values,
+                facecolor=color, edgecolor=color, alpha=0.7)
+
+        # Label the silhouette plots with their cluster numbers at the middle
+        ax1.text(-0.05, y_lower + 0.5 * size_cluster_i, str(i))
+
+        # Compute the new y_lower for next plot
+        y_lower = y_upper + 10  # 10 for the 0 samples
+
+    ax1.axvline(x=cluster_score, color="red", linestyle="--")
+    ax1.set_yticks([])
+
+    if should_plot:
+        plot_samples(layer_cluster_vecs, layer_centroids, labels, show_plt=ax2)
+
+    plt.show()
+
+
 def apply_kmeans(layer_cluster_vecs, k, batch_size):
     layer_cluster_vecs = preprocessing.scale(layer_cluster_vecs)
     layer_cluster_vecs = preprocessing.normalize(layer_cluster_vecs, norm='l2')
@@ -264,17 +300,25 @@ def apply_kmeans(layer_cluster_vecs, k, batch_size):
     labels = np.array(labels)
     #plot_samples(layer_cluster_vecs, layer_centroids, labels)
     sample_size = 5000
-    cluster_score = silhouette_score(layer_cluster_vecs, labels, metric = 'cosine', sample_size=sample_size)
+    cluster_score = silhouette_score(layer_cluster_vecs, labels, metric = 'cosine',
+            sample_size=sample_size)
+    samples_scores = silhouette_samples(layer_cluster_vecs, labels, metric='cosine')
 
     ph.disp('SH: ' + str(cluster_score))
 
     layer_centroids = preprocessing.scale(layer_centroids)
     layer_centroids = preprocessing.normalize(layer_centroids, norm='l2')
 
+    for i, centroid in enumerate(layer_centroids):
+        centroid = centroid.reshape(12, 7)
+        plt.imshow(centroid, cmap='gray')
+        plt.savefig('data/figs/favs/%i.png' % i)
+        plt.clf()
+
     return layer_centroids
 
 
-g_layer_cn = 2
+g_layer_cn = 4
 
 def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stride,
         filter_shape, k, convolute, filter_params):
