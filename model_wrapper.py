@@ -25,11 +25,30 @@ import pickle
 import os
 import operator
 
+from multiprocessing import Pool
+from multiprocessing import cpu_count
+from functools import partial
+
 from clustering import build_patch_vecs
 from helpers.mathhelper import *
 from kmeans_handler import KMeansHandler
 
 import matplotlib.pyplot as plt
+
+
+def get_closest_anchor(xy, anchor_vecs):
+    x, y = xy
+    # Get the closest anchor vector for this sample.
+    min_dist = 100000.0
+    select_index = -1
+    for i, anchor_vec in enumerate(anchor_vecs):
+        dist = cosine_dist(x, anchor_vec)
+        if dist < min_dist:
+            min_dist = dist
+            select_index = i
+
+    assert (select_index != -1), "No final layer vectors"
+    return (x, y, select_index)
 
 
 class ModelWrapper(object):
@@ -89,7 +108,7 @@ class ModelWrapper(object):
         filter_size           = self.hyperparams.filter_size
         batch_size            = self.hyperparams.batch_size
         nkerns                = self.hyperparams.nkerns
-        fc_sizes              = self.hyperparams.fc_sizes
+        fc_sizes              = list(self.hyperparams.fc_sizes)
         force_create          = self.force_create
         n_epochs              = self.hyperparams.n_epochs
         selection_percentages = self.hyperparams.selection_percentages
@@ -151,6 +170,13 @@ class ModelWrapper(object):
             centroid_weights = kmeans_handler.handle_kmeans(offset_index, 'f' + str(i), fc_sizes[i],
                     input_shape, output_shape, f_fc_out, False, assert_shape = assert_shape)
 
+            if centroid_weights.shape[1] != fc_sizes[i]:
+                # Made automatic adjustment to the # of clusters.
+                ph.disp('Adjusting %i to %i anchor vectors for layer %i' %
+                        (fc_sizes[i], centroid_weights.shape[1], offset_index))
+
+                fc_sizes[i] = centroid_weights.shape[1]
+
             if should_set_weights[offset_index]:
                 ph.disp('Setting layer weights')
 
@@ -172,7 +198,7 @@ class ModelWrapper(object):
         model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
         ph.disp('Model is compiled')
 
-        self.model    = model
+        self.model = model
 
 
     def train_model(self):
@@ -255,12 +281,14 @@ class ModelWrapper(object):
         """
         Helper function to add a Dense layer
         """
+        print('Output dim ' + str(output_dim))
         dense_layer = Dense(output_dim)
 
         model.add(dense_layer)
 
         if not weights is None:
             bias = dense_layer.get_weights()[1]
+            print('Weights shape ' + str(weights.shape))
             dense_layer.set_weights([weights, bias])
 
 
@@ -395,6 +423,49 @@ class ModelWrapper(object):
         mapped_inc_y_vals = [self.actual_to_pred[y_val] for y_val in indc_y_vals]
 
         return np.array(list(convert_index_to_onehot(mapped_inc_y_vals, 10)))
+
+
+    def get_closest_anchor_vecs_for_samples(self):
+        ph.disp('Getting closest anchor vector for each sample.')
+        indicies_y = convert_onehot_to_index(self.all_train_y)
+
+        norm_all_train_x = [np.array(train_x).flatten() for train_x in
+                self.all_train_x]
+
+        norm_all_train_x = np.array(norm_all_train_x)
+
+        norm_all_train_x = preprocessing.normalize(norm_all_train_x, norm='l2')
+
+        train_shape = norm_all_train_x.shape
+        norm_all_train_x = norm_all_train_x.reshape(train_shape[0], 1, 28, 28)
+
+        # Pass each of the vectors through the network.
+        transformed_x = self.final_fc_out([norm_all_train_x])[0]
+
+        # Normalize to the unit sphere.
+        transformed_x = preprocessing.normalize(transformed_x, norm='l2')
+        self.compare_x = transformed_x
+
+        # Combine into a list containing
+        # (image passed through network, numeric value of image)
+        train_xy = list(zip(transformed_x, indicies_y))
+
+        # Get the anchor vectors of the network.
+        anchor_vecs = get_anchor_vectors(self)
+
+        # Get the anchor vectors of the final layer.
+        final_fc_anchor_vecs = anchor_vecs[-1]
+
+        final_fc_anchor_vecs = preprocessing.normalize(final_fc_anchor_vecs,
+                norm='l2')
+
+        get_closest_f = partial(get_closest_anchor,
+                anchor_vecs = final_fc_anchor_vecs)
+
+        with Pool(processes=cpu_count()) as p:
+            sample_anchor_vecs = p.map(get_closest_f, train_xy)
+
+        return sample_anchor_vecs
 
 
     def get_closest_anchor_vecs(self, k):

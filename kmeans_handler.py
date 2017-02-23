@@ -119,12 +119,16 @@ class KMeansHandler(object):
 
         # If the anchor vectors should be calculated calculate them.
         if self.should_set_weights[layer_index]:
-            should_force_create = [False, False, False, False, False]
+            should_force_create = [False, False, False, False, True]
             force_create = should_force_create[layer_index]
 
             tmp_centroids = load_or_create_centroids(force_create, self.centroids_out_loc +
                 save_name + '.csv', self.batch_size, layer_out, input_shape, self.subsample,
                 self.filter_size, k, self.filter_params, convolute=convolute)
+
+            if len(tmp_centroids) != k:
+                output_shape = (output_shape[0], len(tmp_centroids))
+                assert_shape = (len(tmp_centroids), assert_shape[1])
 
             if assert_shape is not None:
                 assert tmp_centroids.shape == assert_shape, 'Shape is %s' % str(tmp_centroids.shape)

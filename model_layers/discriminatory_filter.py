@@ -6,9 +6,8 @@ from sklearn.ensemble import IsolationForest
 
 class DiscriminatoryFilter(object):
     # 0.14 actual
-    CUTOFF = [0.23, 2000, 135, 176, 500]
-    #CUTOFF = [0.20, 2000, 135, 176, 500]
-    cur_layer = 0
+    CUTOFF = [25000, 25000, 10000, 5000, 10000]
+    cur_layer = 4
     use_select_count = False
 
     def __init__(self, selection_percent = None):
@@ -46,8 +45,9 @@ class DiscriminatoryFilter(object):
 
         sample_variances = sorted(sample_variances, key = lambda x: -x[1])
         samples = [sample_variance[0] for sample_variance in sample_variances]
+        samples = samples[0:self.CUTOFF[self.cur_layer]]
 
-        return samples
+        return np.array(samples)
 
 
     def custom_filter(self, samples):

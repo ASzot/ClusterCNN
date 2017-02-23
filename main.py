@@ -1,5 +1,6 @@
 # Uncomment these lines if running on macOS it will speed up graphing.
-#import matplotlib
+import matplotlib
+matplotlib.use('Agg')
 #matplotlib.use('TkAgg')
 
 import matplotlib.pyplot as plt
@@ -73,7 +74,6 @@ def get_hyperparams():
         cluster_count = 50000)
 
 
-
 def single_test():
     """
     Build a model using the default hyperparameters
@@ -84,13 +84,14 @@ def single_test():
     hyperparams.extra_path = 'kmeans'
     model = ModelAnalyzer(hyperparams, force_create=False)
     model.create_model()
-    model.eval_performance()
-    model.train_model()
-    model.test_model()
+    #model.eval_performance()
+    #model.train_model()
+    #model.test_model()
     model.post_eval()
 
     add_trainer = AddTrainer(model)
-    add_trainer.identify_clusters()
+    add_trainer.disp_clusters()
+    #add_trainer.identify_clusters()
 
     #all_avs = get_anchor_vectors(model)
     #final_avs = all_avs[-1]
@@ -113,12 +114,10 @@ def single_test():
 
     #    ph.linebreak()
 
-
     #print('AV |', end='')
     #for i in range(len(matching_samples_xy)):
     #    print('%{0}i'.format(4) % i, end='')
     #    print('|', end='')
-
 
     #print('')
 

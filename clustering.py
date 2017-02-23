@@ -292,33 +292,67 @@ def plot_silhouette_scores(cluster_score, samples_scores, should_plot=False):
     plt.show()
 
 
-def apply_kmeans(layer_cluster_vecs, k, batch_size):
-    layer_cluster_vecs = preprocessing.scale(layer_cluster_vecs)
-    layer_cluster_vecs = preprocessing.normalize(layer_cluster_vecs, norm='l2')
+def post_process_centroids(centroids):
+    centroids = preprocessing.scale(centroids)
+    centroids = preprocessing.normalize(centroids, norm='l2')
+    return centroids
+
+
+def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
+        max_std, branch_depth = 0):
+    ph.disp('At branch depth %i' % branch_depth)
     layer_centroids, labels = kmeans(layer_cluster_vecs, k, batch_size)
 
     labels = np.array(labels)
-    #plot_samples(layer_cluster_vecs, layer_centroids, labels)
     sample_size = 5000
+
+    ph.disp('Computing silhouette scores')
     cluster_score = silhouette_score(layer_cluster_vecs, labels, metric = 'cosine',
             sample_size=sample_size)
     samples_scores = silhouette_samples(layer_cluster_vecs, labels, metric='cosine')
+    ph.disp('Finished computing silhouette scores')
 
     ph.disp('SH: ' + str(cluster_score))
 
-    layer_centroids = preprocessing.scale(layer_centroids)
-    layer_centroids = preprocessing.normalize(layer_centroids, norm='l2')
+    layer_centroids = post_process_centroids(layer_centroids).tolist()
 
-    for i, centroid in enumerate(layer_centroids):
-        centroid = centroid.reshape(12, 7)
-        plt.imshow(centroid, cmap='gray')
-        plt.savefig('data/figs/favs/%i.png' % i)
-        plt.clf()
+    for i in range(k):
+        this_cluster = layer_cluster_vecs[labels == i]
+        this_cluster_std = np.std(this_cluster)
+        this_cluster_avg = np.mean(this_cluster)
+
+        if len(this_cluster) > min_cluster_samples and max_std < this_cluster_std:
+            ph.disp('Branching cluster')
+            sub_layer_centroids = recur_apply_kmeans(this_cluster, 2,
+                    batch_size, min_cluster_samples, max_std, branch_depth + 1)
+            layer_centroids.extend(sub_layer_centroids)
+
+        ph.disp('%i) %.5f, %.5f' % (i, this_cluster_std, this_cluster_avg))
 
     return layer_centroids
 
 
-g_layer_cn = 4
+def apply_kmeans(layer_cluster_vecs, k, cur_layer, batch_size):
+    layer_cluster_vecs = preprocessing.scale(layer_cluster_vecs)
+    layer_cluster_vecs = preprocessing.normalize(layer_cluster_vecs, norm='l2')
+
+    print('The cur layer is %i' % cur_layer)
+    max_std = 0.1
+
+    min_samples_percentage = 0.1
+
+    # The minimum # of samples per cluster.
+    # Note that this rule always has precedence over the max std rule.
+    min_cluster_samples = int(len(layer_cluster_vecs) * min_samples_percentage)
+
+    ph.disp('The max std per cluster:       %.4f' % max_std)
+    ph.disp('Min # of samples per cluster:  %i' % min_cluster_samples)
+
+    all_centroids = recur_apply_kmeans(layer_cluster_vecs, k, batch_size,
+            min_cluster_samples, max_std)
+
+    return np.array(all_centroids)
+
 
 def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stride,
         filter_shape, k, convolute, filter_params):
@@ -328,11 +362,6 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
     #if filter_params is not None:
     #    cluster_vecs = filter_params.filter_samples(cluster_vecs)
-    global g_layer_cn
-
-    cluster_counts = [25000, 25000, 10000, 5000, 5000]
-
-    cur_cluster_count = cluster_counts[g_layer_cn]
 
     ph.disp('- Building centroids')
 
@@ -369,15 +398,12 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     cluster_vecs = cluster_vecs.reshape(cvs[1], cvs[0] * cvs[2])
     cluster_vecs = filter_params.get_sorted(cluster_vecs)
 
-    cluster_vecs = cluster_vecs[0:cur_cluster_count]
-    cluster_vecs = np.array(cluster_vecs)
-
     cluster_vecs = np.array(list(filter_params.filter_outliers(cluster_vecs)))
 
     cluster_vecs = cluster_vecs.reshape(cvs[0], -1, cvs[2])
 
     for layer_cluster_vecs in cluster_vecs:
-        layer_centroids = apply_kmeans(layer_cluster_vecs, k, batch_size)
+        layer_centroids = apply_kmeans(layer_cluster_vecs, k, filter_params.cur_layer, batch_size)
 
         centroids.append(layer_centroids)
 
@@ -386,8 +412,6 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
     centroids = centroids.reshape(-1, cs[0] * cs[2])
     ph.disp('Centroids now have shape %s' % str(centroids.shape))
-
-    g_layer_cn += 1
 
     return centroids
 
