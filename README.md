@@ -21,6 +21,7 @@ The motivation behind this experiment is viewing convolution filter weights as a
 * Theano
 * Keras
 * [MulticoreTSNE](https://github.com/DmitryUlyanov/Multicore-TSNE)
+* [SphereCluster](https://github.com/clara-labs/spherecluster)
 
 ##Installation
 I recommend using Anaconda to manage packages and Python versions. You can find
@@ -37,8 +38,21 @@ the installer for Anaconda [here](https://www.continuum.io/downloads).
     command does not work.
   * `pip install Theano`
   * `pip install Keras`
-  * Go to [MulticoreTSNE GitHub](https://github.com/DmitryUlyanov/Multicore-TSNE) to see further 
-    instructions on how to install the MulticoreTSNE Python package.
+  * Install the MutlicoreTSNE package:
+    * `git clone https://github.com/DmitryUlyanov/Multicore-TSNE.git`
+    * `cd Multicore-TSNE`
+    * `pip install -r requirements.txt`
+    * `python setup.py install`
+    * Go to [MulticoreTSNE GitHub](https://github.com/DmitryUlyanov/Multicore-TSNE) 
+    to see further instructions on how to install the MulticoreTSNE Python package.
+  * SphereCluster:
+    * `git clone https://github.com/clara-labs/spherecluster.git`
+    * `cd spherecluster`
+    * `python setup.py install`
+    * Go to [SphereCluster GitHub](https://github.com/clara-labs/spherecluster)
+      for more information.
+  * Upgrade to the most recent version of sklearn to get the IsolationForrest:
+    * `pip install sklearn --upgrade`
 * Deactivate your conda environment
   * `deactivate yourenvname`
 

@@ -6,8 +6,8 @@ from sklearn.ensemble import IsolationForest
 
 class DiscriminatoryFilter(object):
     # 0.14 actual
-    CUTOFF = [25000, 25000, 10000, 5000, 10000]
-    cur_layer = 4
+    CUTOFF = [25000, 25000, 40000, 40000, 40000]
+    cur_layer = 0
     use_select_count = False
 
     def __init__(self, selection_percent = None):
@@ -40,10 +40,13 @@ class DiscriminatoryFilter(object):
         sample_variances = list(zip(samples, variances))
 
         toss_thresh = per_sample_avg
+        ph.disp('-----Filtering out values to make sorting easier')
         sample_variances = [(sample, variance) for sample, variance in sample_variances if variance > toss_thresh]
         ph.disp('-----Filtered out values to make sorting easier')
 
+        ph.disp('-----Beginning sort')
         sample_variances = sorted(sample_variances, key = lambda x: -x[1])
+        ph.disp('-----Sort finished')
         samples = [sample_variance[0] for sample_variance in sample_variances]
         samples = samples[0:self.CUTOFF[self.cur_layer]]
 

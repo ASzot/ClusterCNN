@@ -8,7 +8,6 @@ from keras import backend as K
 from keras.models import load_model
 from keras.optimizers import SGD
 from keras.utils import np_utils
-from keras.utils.visualize_util import plot as keras_plot
 
 from helpers.printhelper import PrintHelper as ph
 from model_layers.discriminatory_filter import DiscriminatoryFilter

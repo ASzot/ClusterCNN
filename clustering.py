@@ -299,7 +299,7 @@ def post_process_centroids(centroids):
 
 
 def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
-        max_std, branch_depth = 0):
+        max_std, can_recur, branch_depth = 0):
     ph.disp('At branch depth %i' % branch_depth)
     layer_centroids, labels = kmeans(layer_cluster_vecs, k, batch_size)
 
@@ -316,18 +316,19 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 
     layer_centroids = post_process_centroids(layer_centroids).tolist()
 
-    for i in range(k):
-        this_cluster = layer_cluster_vecs[labels == i]
-        this_cluster_std = np.std(this_cluster)
-        this_cluster_avg = np.mean(this_cluster)
+    if can_recur:
+        for i in range(k):
+            this_cluster = layer_cluster_vecs[labels == i]
+            this_cluster_std = np.std(this_cluster)
+            this_cluster_avg = np.mean(this_cluster)
 
-        if len(this_cluster) > min_cluster_samples and max_std < this_cluster_std:
-            ph.disp('Branching cluster')
-            sub_layer_centroids = recur_apply_kmeans(this_cluster, 2,
-                    batch_size, min_cluster_samples, max_std, branch_depth + 1)
-            layer_centroids.extend(sub_layer_centroids)
+            if len(this_cluster) > min_cluster_samples and max_std < this_cluster_std:
+                ph.disp('Branching cluster')
+                sub_layer_centroids = recur_apply_kmeans(this_cluster, 2,
+                        batch_size, min_cluster_samples, max_std, can_recur, branch_depth + 1)
+                layer_centroids.extend(sub_layer_centroids)
 
-        ph.disp('%i) %.5f, %.5f' % (i, this_cluster_std, this_cluster_avg))
+            ph.disp('%i) %.5f, %.5f' % (i, this_cluster_std, this_cluster_avg))
 
     return layer_centroids
 
@@ -338,7 +339,6 @@ def apply_kmeans(layer_cluster_vecs, k, cur_layer, batch_size):
 
     print('The cur layer is %i' % cur_layer)
     max_std = 0.1
-
     min_samples_percentage = 0.1
 
     # The minimum # of samples per cluster.
@@ -349,7 +349,7 @@ def apply_kmeans(layer_cluster_vecs, k, cur_layer, batch_size):
     ph.disp('Min # of samples per cluster:  %i' % min_cluster_samples)
 
     all_centroids = recur_apply_kmeans(layer_cluster_vecs, k, batch_size,
-            min_cluster_samples, max_std)
+            min_cluster_samples, max_std, can_recur = (cur_layer==4))
 
     return np.array(all_centroids)
 
@@ -394,13 +394,15 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
     centroids = []
 
-    cvs = cluster_vecs.shape
-    cluster_vecs = cluster_vecs.reshape(cvs[1], cvs[0] * cvs[2])
-    cluster_vecs = filter_params.get_sorted(cluster_vecs)
+    if convolute:
+        cvs = cluster_vecs.shape
+        cluster_vecs = cluster_vecs.reshape(cvs[1], cvs[0] * cvs[2])
 
-    cluster_vecs = np.array(list(filter_params.filter_outliers(cluster_vecs)))
+        cluster_vecs = filter_params.get_sorted(cluster_vecs)
 
-    cluster_vecs = cluster_vecs.reshape(cvs[0], -1, cvs[2])
+        cluster_vecs = np.array(list(filter_params.filter_outliers(cluster_vecs)))
+
+        cluster_vecs = cluster_vecs.reshape(cvs[0], -1, cvs[2])
 
     for layer_cluster_vecs in cluster_vecs:
         layer_centroids = apply_kmeans(layer_cluster_vecs, k, filter_params.cur_layer, batch_size)
