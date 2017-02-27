@@ -8,6 +8,12 @@ import sklearn.preprocessing as preprocessing
 from sklearn.metrics import silhouette_score
 from sklearn.metrics import silhouette_samples
 
+from keras.layers.convolutional import MaxPooling2D
+from keras import backend as K
+from theano.tensor.signal import pool
+from theano import tensor as T
+import theano
+
 from scipy.cluster.vq import whiten
 
 import pickle
@@ -293,26 +299,29 @@ def plot_silhouette_scores(cluster_score, samples_scores, should_plot=False):
 
 
 def post_process_centroids(centroids):
-    centroids = preprocessing.scale(centroids)
-    centroids = preprocessing.normalize(centroids, norm='l2')
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        centroids = preprocessing.scale(centroids)
+        centroids = preprocessing.normalize(centroids, norm='l2')
     return centroids
 
 
 def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
         max_std, can_recur, branch_depth = 0):
-    ph.disp('At branch depth %i' % branch_depth)
+    pre_txt = '---' * branch_depth
+    ph.disp(pre_txt + 'At branch depth %i' % branch_depth)
     layer_centroids, labels = kmeans(layer_cluster_vecs, k, batch_size)
 
     labels = np.array(labels)
     sample_size = 5000
 
-    ph.disp('Computing silhouette scores')
+    ph.disp(pre_txt + 'Computing silhouette scores')
     cluster_score = silhouette_score(layer_cluster_vecs, labels, metric = 'cosine',
             sample_size=sample_size)
     samples_scores = silhouette_samples(layer_cluster_vecs, labels, metric='cosine')
-    ph.disp('Finished computing silhouette scores')
+    ph.disp(pre_txt + 'Finished computing silhouette scores')
 
-    ph.disp('SH: ' + str(cluster_score))
+    ph.disp(pre_txt + 'SH: ' + str(cluster_score))
 
     layer_centroids = post_process_centroids(layer_centroids).tolist()
 
@@ -323,46 +332,28 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
             this_cluster_avg = np.mean(this_cluster)
 
             if len(this_cluster) > min_cluster_samples and max_std < this_cluster_std:
-                ph.disp('Branching cluster')
+                ph.linebreak()
+                ph.disp(pre_txt + 'Branching cluster')
                 sub_layer_centroids = recur_apply_kmeans(this_cluster, 2,
                         batch_size, min_cluster_samples, max_std, can_recur, branch_depth + 1)
+                ph.linebreak()
                 layer_centroids.extend(sub_layer_centroids)
 
-            ph.disp('%i) %.5f, %.5f' % (i, this_cluster_std, this_cluster_avg))
+            ph.disp(pre_txt + '%i) %.5f, %.5f' % (i, this_cluster_std, this_cluster_avg))
 
     return layer_centroids
 
 
-def apply_kmeans(layer_cluster_vecs, k, cur_layer, batch_size):
-    layer_cluster_vecs = preprocessing.scale(layer_cluster_vecs)
-    layer_cluster_vecs = preprocessing.normalize(layer_cluster_vecs, norm='l2')
-
-    print('The cur layer is %i' % cur_layer)
-    max_std = 0.1
-    min_samples_percentage = 0.1
-
-    # The minimum # of samples per cluster.
-    # Note that this rule always has precedence over the max std rule.
-    min_cluster_samples = int(len(layer_cluster_vecs) * min_samples_percentage)
-
-    ph.disp('The max std per cluster:       %.4f' % max_std)
-    ph.disp('Min # of samples per cluster:  %i' % min_cluster_samples)
-
-    all_centroids = recur_apply_kmeans(layer_cluster_vecs, k, batch_size,
-            min_cluster_samples, max_std, can_recur = (cur_layer==4))
-
-    return np.array(all_centroids)
+def save_raw_image_patches(cluster_vecs, raw_save_loc):
+    ph.disp('Saving image patches')
+    with open(raw_save_loc, 'wb') as f:
+        csvwriter = csv.writer(f)
+        for cluster_vec in cluster_vecs:
+            csvwriter.writerow(cluster_vec)
 
 
-def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stride,
-        filter_shape, k, convolute, filter_params):
-    """
-    The entry point for creating the centroids for input samples for a given layer.
-    """
-
-    #if filter_params is not None:
-    #    cluster_vecs = filter_params.filter_samples(cluster_vecs)
-
+def build_cluster_vecs(train_set_x, input_shape, stride, filter_shape,
+        convolute):
     ph.disp('- Building centroids')
 
     # Do we need to build the image patches because we are in a convolution layer?
@@ -383,14 +374,46 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
         # Wrap in another dimension.
         cluster_vecs = train_set_x.reshape(1, sp[0], int(input_shape_prod))
 
-    cluster_vecs = np.array(cluster_vecs, dtype='float32')
+    return np.array(cluster_vecs, dtype='float32')
+
+
+def apply_kmeans(layer_cluster_vecs, k, cur_layer, batch_size):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        layer_cluster_vecs = preprocessing.scale(layer_cluster_vecs)
+        layer_cluster_vecs = preprocessing.normalize(layer_cluster_vecs, norm='l2')
+
+    print('The cur layer is %i' % cur_layer)
+    max_std = 0.1
+    min_samples_percentage = 0.1
+
+    # The minimum # of samples per cluster.
+    # Note that this rule always has precedence over the max std rule.
+    min_cluster_samples = int(len(layer_cluster_vecs) * min_samples_percentage)
+
+    can_recur = (cur_layer == 4)
+
+    if can_recur:
+        ph.disp('The max std per cluster:       %.4f' % max_std)
+        ph.disp('Min # of samples per cluster:  %i' % min_cluster_samples)
+
+    all_centroids = recur_apply_kmeans(layer_cluster_vecs, k, batch_size,
+            min_cluster_samples, max_std, can_recur = can_recur)
+
+    return np.array(all_centroids)
+
+
+def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stride,
+        filter_shape, k, convolute, filter_params, layer_index):
+    """
+    The entry point for creating the centroids for input samples for a given layer.
+    """
+
+    cluster_vecs = build_cluster_vecs(train_set_x, input_shape, stride,
+            filter_shape, convolute)
 
     if raw_save_loc != '':
-        ph.disp('Saving image patches')
-        with open(raw_save_loc, 'wb') as f:
-            csvwriter = csv.writer(f)
-            for cluster_vec in cluster_vecs:
-                csvwriter.writerow(cluster_vec)
+        save_raw_image_patches(cluster_vecs, raw_save_loc)
 
     centroids = []
 
@@ -400,12 +423,12 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
         cluster_vecs = filter_params.get_sorted(cluster_vecs)
 
-        cluster_vecs = np.array(list(filter_params.filter_outliers(cluster_vecs)))
+        #cluster_vecs = np.array(list(filter_params.filter_outliers(cluster_vecs)))
 
         cluster_vecs = cluster_vecs.reshape(cvs[0], -1, cvs[2])
 
     for layer_cluster_vecs in cluster_vecs:
-        layer_centroids = apply_kmeans(layer_cluster_vecs, k, filter_params.cur_layer, batch_size)
+        layer_centroids = apply_kmeans(layer_cluster_vecs, k, layer_index, batch_size)
 
         centroids.append(layer_centroids)
 
@@ -419,7 +442,7 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
 
 def load_or_create_centroids(force_create, filename, batch_size, data_set_x,
-        input_shape, stride, filter_shape, k, filter_params, convolute=True,
+        input_shape, stride, filter_shape, k, filter_params, layer_index, convolute=True,
         raw_save_loc=''):
     """
     Wrapper function to load they anchor vectors for the current layer if they exist
@@ -440,7 +463,7 @@ def load_or_create_centroids(force_create, filename, batch_size, data_set_x,
 
     if force_create:
         centroids = construct_centroids(raw_save_loc, batch_size, data_set_x, input_shape,
-                stride, filter_shape, k, convolute, filter_params)
+                stride, filter_shape, k, convolute, filter_params, layer_index)
         save_centroids(centroids, filename)
 
     return centroids

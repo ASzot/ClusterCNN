@@ -20,7 +20,7 @@ class AddTrainer(object):
             else:
                 av_matching_samples[av_i] = defaultdict(int)
 
-        for av_i in av_matching_samples:
+        for av_i in sorted(av_matching_samples):
             dict_to_sort = dict(av_matching_samples[av_i])
             matching_samples = sorted(dict_to_sort.items(), key=operator.itemgetter(1), reverse=True)
             total = 0
@@ -32,6 +32,8 @@ class AddTrainer(object):
 
             disp_count = 2
             for i in range(disp_count):
+                if i >= len(matching_samples):
+                    break
                 if len(matching_samples[i]) != 0:
                     out_of_total = float(matching_samples[i][1]) / float(total) * 100.
                     print("--%.2f%% %i's" % (out_of_total, matching_samples[i][0]))

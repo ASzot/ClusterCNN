@@ -25,12 +25,12 @@ class KMeansHandler(object):
         self.prev_out = None
 
 
-    def set_filter_params(self, selection_percent):
+    def set_filter_params(self, selection_count):
         """
         Set the parameters for the discriminitory filter which
         selects samples based off of variance.
         """
-        self.filter_params.selection_percent = selection_percent
+        self.filter_params.selection_count = selection_count
 
 
     def set_filepaths(self, extra_path):
@@ -114,18 +114,14 @@ class KMeansHandler(object):
         self.prev_out = layer_out
 
         # Save the transformed input if the flag is set.
-        if self.SHOULD_SAVE_RAW and self.force_create:
+        if self.SHOULD_SAVE_RAW and self.force_create[layer_index]:
             self.__save_raw_output(self.raw_out_loc + save_name + '.csv', layer_out)
 
         # If the anchor vectors should be calculated calculate them.
         if self.should_set_weights[layer_index]:
-            # To override the global should force create
-            #should_force_create = [False, False, False, False, True]
-            #force_create = should_force_create[layer_index]
-
-            tmp_centroids = load_or_create_centroids(self.force_create, self.centroids_out_loc +
+            tmp_centroids = load_or_create_centroids(self.force_create[layer_index], self.centroids_out_loc +
                 save_name + '.csv', self.batch_size, layer_out, input_shape, self.subsample,
-                self.filter_size, k, self.filter_params, convolute=convolute)
+                self.filter_size, k, self.filter_params, layer_index, convolute=convolute)
 
             if len(tmp_centroids) != k:
                 output_shape = (output_shape[0], len(tmp_centroids))

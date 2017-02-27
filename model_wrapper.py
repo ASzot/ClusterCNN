@@ -101,20 +101,19 @@ class ModelWrapper(object):
         self.all_test_y = test_labels
 
         # Set all of the hyperparameters to be used.
-        input_shape           = self.hyperparams.input_shape
-        subsample             = self.hyperparams.subsample
-        patches_subsample     = self.hyperparams.patches_subsample
-        filter_size           = self.hyperparams.filter_size
-        batch_size            = self.hyperparams.batch_size
-        nkerns                = self.hyperparams.nkerns
-        fc_sizes              = list(self.hyperparams.fc_sizes)
-        force_create          = self.force_create
-        n_epochs              = self.hyperparams.n_epochs
-        selection_percentages = self.hyperparams.selection_percentages
-        use_filters           = self.hyperparams.use_filters
-        should_set_weights    = self.hyperparams.should_set_weights
-        should_eval           = self.hyperparams.should_eval
-        extra_path            = self.hyperparams.extra_path
+        input_shape        = self.hyperparams.input_shape
+        subsample          = self.hyperparams.subsample
+        patches_subsample  = self.hyperparams.patches_subsample
+        filter_size        = self.hyperparams.filter_size
+        batch_size         = self.hyperparams.batch_size
+        nkerns             = self.hyperparams.nkerns
+        fc_sizes           = list(self.hyperparams.fc_sizes)
+        force_create       = self.force_create
+        n_epochs           = self.hyperparams.n_epochs
+        selection_counts   = self.hyperparams.selection_counts
+        should_set_weights = self.hyperparams.should_set_weights
+        should_eval        = self.hyperparams.should_eval
+        extra_path         = self.hyperparams.extra_path
 
         kmeans_handler = KMeansHandler(should_set_weights, force_create, batch_size,
                 patches_subsample, filter_size, train_data, DiscriminatoryFilter())
@@ -130,10 +129,7 @@ class ModelWrapper(object):
 
         # Create the convolution layers.
         for i in range(len(nkerns)):
-            if not use_filters[i]:
-                kmeans_handler.set_filter_params(None, None)
-            else:
-                kmeans_handler.set_filter_params(selection_percentages[i])
+            kmeans_handler.set_filter_params(selection_counts[i])
 
             output_shape = (nkerns[i], input_shape[0], filter_size[0], filter_size[1])
             assert_shape = (nkerns[i], input_shape[0] * filter_size[0] * filter_size[1])
@@ -159,10 +155,7 @@ class ModelWrapper(object):
         # Create the FC layers.
         for i in range(len(fc_sizes)):
             offset_index = i + len(nkerns)
-            if not use_filters[offset_index]:
-                kmeans_handler.set_filter_params(None, None)
-            else:
-                kmeans_handler.set_filter_params(selection_percentages[offset_index])
+            kmeans_handler.set_filter_params(selection_counts[offset_index])
 
             output_shape = (np.array(input_shape).prod(), fc_sizes[i])
             assert_shape = (fc_sizes[i], np.array(input_shape).prod())
@@ -424,19 +417,22 @@ class ModelWrapper(object):
         return np.array(list(convert_index_to_onehot(mapped_inc_y_vals, 10)))
 
 
-    def get_closest_anchor_vecs_for_samples(self):
+    def get_closest_anchor_vecs_for_samples(self, use_data=None):
         ph.disp('Getting closest anchor vector for each sample.')
         indicies_y = convert_onehot_to_index(self.all_train_y)
+
+        if use_data is None:
+            use_data = self.all_train_x
 
         norm_all_train_x = [np.array(train_x).flatten() for train_x in
                 self.all_train_x]
 
         norm_all_train_x = np.array(norm_all_train_x)
 
+        norm_all_train_x = preprocessing.scale(norm_all_train_x )
         norm_all_train_x = preprocessing.normalize(norm_all_train_x, norm='l2')
 
-        train_shape = norm_all_train_x.shape
-        norm_all_train_x = norm_all_train_x.reshape(train_shape[0], 1, 28, 28)
+        norm_all_train_x = use_data.reshape(-1, 1, 28, 28)
 
         # Pass each of the vectors through the network.
         transformed_x = self.final_fc_out([norm_all_train_x])[0]
