@@ -343,7 +343,7 @@ def post_process_centroids(centroids):
 
 
 def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
-        max_std, can_recur, all_train_y, mappings, branch_depth = 0):
+        max_std, can_recur, all_train_y, all_train_x, mappings, branch_depth = 0):
     pre_txt = '---' * branch_depth
     ph.disp(pre_txt + 'At branch depth %i' % branch_depth)
     layer_centroids, labels = kmeans(layer_cluster_vecs, k, batch_size)
@@ -367,10 +367,12 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
         for i in range(k):
             this_cluster = []
             real_labels = []
+            real_samples = []
             for j, label in enumerate(labels):
                 if label == i:
                     this_cluster.append(layer_cluster_vecs[j])
                     real_labels.append(all_train_y[j])
+                    real_samples.append(all_train_x[j])
 
             label_freqs = list(get_freq_percents(real_labels))
             label_freqs = sorted(label_freqs, key=lambda x: x[1], reverse=True)
@@ -404,16 +406,16 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
                 sub_mapping = {}
                 sub_layer_centroids = recur_apply_kmeans(this_cluster, 2,
                         batch_size, min_cluster_samples, max_std, can_recur,
-                        real_labels, sub_mapping, branch_depth + 1)
+                        real_labels, all_train_x, sub_mapping, branch_depth + 1)
                 ph.linebreak()
 
                 mappings[i] = sub_mapping
                 final_centroids.extend(sub_layer_centroids)
             else:
-                mappings[i] = this_cluster
+                mappings[i] = real_samples
                 final_centroids.append(layer_centroids[i])
 
-    return layer_centroids
+    return final_centroids
 
 
 def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
@@ -423,7 +425,7 @@ def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
         layer_cluster_vecs = preprocessing.normalize(layer_cluster_vecs, norm='l2')
 
     print('The cur layer is %i' % cur_layer)
-    max_std = 0.1
+    max_std = 0.01
     min_samples_percentage = 0.05
 
     # The minimum # of samples per cluster.
@@ -440,7 +442,8 @@ def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
 
     mapping = {}
     all_centroids = recur_apply_kmeans(layer_cluster_vecs, k, batch_size,
-            min_cluster_samples, max_std, can_recur, train_y, mapping)
+            min_cluster_samples, max_std, can_recur, train_y,
+            model_wrapper.all_train_x, mapping)
 
     model_wrapper.set_mapping(mapping)
 

@@ -88,6 +88,7 @@ def single_test():
     #model.train_model()
     #model.test_model()
     model.post_eval()
+    model.adaptive_train()
 
     #add_trainer = AddTrainer(model)
     #add_trainer.disp_clusters()

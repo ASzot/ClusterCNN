@@ -201,7 +201,86 @@ class ModelWrapper(object):
 
 
     def set_mapping(self, mapping):
-        self.sample_mapping = mappping
+        self.sample_mapping = mapping
+
+
+    def __flatten_mapping(self, mapping):
+        for map_index in mapping:
+            map_value = mapping[map_index]
+
+            if isinstance(map_value, dict):
+                self.__flatten_mapping(map_value)
+            else:
+                self.sample_mapping.append(map_value)
+
+
+    def adaptive_train(self):
+        # Use the sample mapping.
+
+        ph.disp('Beginning adaptive training')
+
+        cp_mapping = self.sample_mapping.copy()
+        self.sample_mapping = []
+
+        self.__flatten_mapping(cp_mapping)
+
+        train_x = []
+        train_y = []
+
+        anchor_vecs = get_anchor_vectors(self)
+        final_fc_anchor_vecs = anchor_vecs[-1]
+        output_count = len(final_fc_anchor_vecs)
+
+        for i, cluster_samples in enumerate(self.sample_mapping):
+            train_x.extend(cluster_samples)
+            label = list(convert_index_to_onehot([i], output_count))
+            train_y.extend(label * len(cluster_samples))
+
+        assert len(train_x) == len(train_y), 'Samples X (%i) and Y (%i) do not match' % (len(train_x), len(train_y))
+
+        ph.disp('Training the model on nearest clusters')
+        train_x = np.array(train_x)
+        train_y = np.array(train_y)
+        train_x = train_x.reshape(-1, 1, 28, 28)
+        # Train the model.
+        self.model.fit(train_x, train_y, batch_size = self.hyperparams.batch_size,
+                nb_epoch=10, verbose=1)
+
+        preds = self.model.predict(self.all_train_x,
+                batch_size=self.hyperparams.batch_size, verbose=1)
+
+        preds = convert_onehot_to_index(preds)
+        actuals = convert_onehot_to_index(self.all_train_y)
+
+        pred_to_actual = {}
+        for pred, actual in zip(preds, actuals):
+            if pred not in pred_to_actual:
+                pred_to_actual[pred] = {}
+
+            if actual in pred_to_actual[pred]:
+                pred_to_actual[pred][actual] += 1
+            else:
+                pred_to_actual[pred][actual] = 1
+
+        for pred in pred_to_actual:
+            actual_freq = pred_to_actual[pred]
+
+            actual_freq = sorted(actual_freq.items(),
+                    key=operator.itemgetter(1), reverse=True)
+
+            total = 0
+
+            for actual, freq in actual_freq:
+                total += freq
+
+            tmp_i = 0
+            print('For prection %i' % (pred))
+            for actual, freq in actual_freq:
+                print('   %i: %.2f%%' % (actual, 100. * (freq / float(total))))
+                tmp_i += 1
+                if tmp_i >= 3:
+                    break
+
 
 
     def train_model(self):
