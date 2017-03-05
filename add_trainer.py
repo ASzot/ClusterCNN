@@ -12,7 +12,9 @@ class AddTrainer(object):
 
 
     def disp_clusters(self):
-        sample_closest_anchor_vec = self.model.get_closest_anchor_vecs_for_samples()
+        print('Data shape ' + str(self.model.final_fc_out_data.shape))
+        sample_closest_anchor_vec = self.model.get_closest_anchor_vecs_for_samples(
+                self.model.final_fc_out_data)
         av_matching_samples = {}
         for x, y, av_i in sample_closest_anchor_vec:
             if av_i in av_matching_samples:

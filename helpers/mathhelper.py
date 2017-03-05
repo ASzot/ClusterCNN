@@ -11,6 +11,12 @@ import pickle
 from multiprocessing import cpu_count
 
 
+def get_freq_percents(labels):
+    y = np.bincount(labels)
+    ii = np.nonzero(y)[0]
+    return np.vstack((ii,y[ii])).T
+
+
 def subtract_mean(cluster_vec):
     return cluster_vec - np.mean(cluster_vec)
 

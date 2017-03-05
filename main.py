@@ -89,8 +89,8 @@ def single_test():
     #model.test_model()
     model.post_eval()
 
-    add_trainer = AddTrainer(model)
-    add_trainer.disp_clusters()
+    #add_trainer = AddTrainer(model)
+    #add_trainer.disp_clusters()
     #add_trainer.identify_clusters()
 
     #all_avs = get_anchor_vectors(model)

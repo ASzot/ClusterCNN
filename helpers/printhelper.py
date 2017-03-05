@@ -31,6 +31,7 @@ class PrintHelper(object):
             return
         print('\n' * 2)
 
+
 def print_cm(cm, labels, hide_zeroes=False, hide_diagonal=False, hide_threshold=None):
     """pretty print for confusion matrixes"""
     columnwidth = max([len(x) for x in labels]+[5]) # 5 is value length

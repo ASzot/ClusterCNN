@@ -12,7 +12,8 @@ class KMeansHandler(object):
     SHOULD_SAVE_RAW = False
 
     def __init__(self, should_set_weights, force_create, batch_size,
-                    subsample, filter_size, train_data, filter_params):
+                    subsample, filter_size, train_data, filter_params,
+                    model_wrapper):
         self.should_set_weights = should_set_weights
         self.force_create = force_create
         self.batch_size = batch_size
@@ -23,6 +24,7 @@ class KMeansHandler(object):
         self.train_data = train_data
         self.filter_params = filter_params
         self.prev_out = None
+        self.model_wrapper = model_wrapper
 
 
     def set_filter_params(self, selection_count):
@@ -121,7 +123,8 @@ class KMeansHandler(object):
         if self.should_set_weights[layer_index]:
             tmp_centroids = load_or_create_centroids(self.force_create[layer_index], self.centroids_out_loc +
                 save_name + '.csv', self.batch_size, layer_out, input_shape, self.subsample,
-                self.filter_size, k, self.filter_params, layer_index, convolute=convolute)
+                self.filter_size, k, self.filter_params, layer_index,
+                self.model_wrapper, convolute=convolute)
 
             if len(tmp_centroids) != k:
                 output_shape = (output_shape[0], len(tmp_centroids))

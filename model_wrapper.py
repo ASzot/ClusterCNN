@@ -18,6 +18,7 @@ from sklearn.cross_validation import train_test_split
 from sklearn import datasets
 import sklearn.preprocessing as preprocessing
 from scipy.spatial.distance import cosine as cosine_dist
+from sklearn.metrics.pairwise import euclidean_distances
 
 import csv
 import pickle
@@ -41,7 +42,11 @@ def get_closest_anchor(xy, anchor_vecs):
     min_dist = 100000.0
     select_index = -1
     for i, anchor_vec in enumerate(anchor_vecs):
-        dist = cosine_dist(x, anchor_vec)
+        #x = x.reshape(-1, 1)
+        #anchor_vec = anchor_vec.reshape(-1, 1)
+        #dist = np.linalg.norm(x - anchor_vec)
+        #dist = euclidean_distances(x, anchor_vec)
+        #dist = cosine_dist(x, anchor_vec)
         if dist < min_dist:
             min_dist = dist
             select_index = i
@@ -116,7 +121,8 @@ class ModelWrapper(object):
         extra_path         = self.hyperparams.extra_path
 
         kmeans_handler = KMeansHandler(should_set_weights, force_create, batch_size,
-                patches_subsample, filter_size, train_data, DiscriminatoryFilter())
+                patches_subsample, filter_size, train_data,
+                DiscriminatoryFilter(), self)
 
         kmeans_handler.set_filepaths(extra_path)
 
@@ -133,8 +139,8 @@ class ModelWrapper(object):
 
             output_shape = (nkerns[i], input_shape[0], filter_size[0], filter_size[1])
             assert_shape = (nkerns[i], input_shape[0] * filter_size[0] * filter_size[1])
-            centroid_weights = kmeans_handler.handle_kmeans(i, 'c' + str(i), nkerns[i], input_shape, output_shape,
-                                    f_conv_out, True, assert_shape = assert_shape)
+            centroid_weights = kmeans_handler.handle_kmeans(i, 'c' + str(i), nkerns[i],
+                    input_shape, output_shape, f_conv_out, True, assert_shape = assert_shape)
 
             if should_set_weights[i]:
                 ph.disp('Setting layer weights.')
@@ -180,6 +186,7 @@ class ModelWrapper(object):
             input_shape = (fc_sizes[i],)
             ph.linebreak()
 
+        self.final_fc_out_data = kmeans_handler.prev_out
         self.final_fc_out = K.function([model.layers[0].input], [model.layers[len(model.layers) - 2].output])
 
         model.add(Activation('softmax'))
@@ -191,6 +198,10 @@ class ModelWrapper(object):
         ph.disp('Model is compiled')
 
         self.model = model
+
+
+    def set_mapping(self, mapping):
+        self.sample_mapping = mappping
 
 
     def train_model(self):
@@ -423,19 +434,20 @@ class ModelWrapper(object):
 
         if use_data is None:
             use_data = self.all_train_x
+            norm_all_train_x = [np.array(train_x).flatten() for train_x in
+                    self.all_train_x]
 
-        norm_all_train_x = [np.array(train_x).flatten() for train_x in
-                self.all_train_x]
+            norm_all_train_x = np.array(norm_all_train_x)
 
-        norm_all_train_x = np.array(norm_all_train_x)
+            norm_all_train_x = preprocessing.scale(norm_all_train_x )
+            norm_all_train_x = preprocessing.normalize(norm_all_train_x, norm='l2')
 
-        norm_all_train_x = preprocessing.scale(norm_all_train_x )
-        norm_all_train_x = preprocessing.normalize(norm_all_train_x, norm='l2')
+            norm_all_train_x = use_data.reshape(-1, 1, 28, 28)
 
-        norm_all_train_x = use_data.reshape(-1, 1, 28, 28)
-
-        # Pass each of the vectors through the network.
-        transformed_x = self.final_fc_out([norm_all_train_x])[0]
+            # Pass each of the vectors through the network.
+            transformed_x = self.final_fc_out([norm_all_train_x])[0]
+        else:
+            transformed_x = use_data
 
         # Normalize to the unit sphere.
         transformed_x = preprocessing.normalize(transformed_x, norm='l2')
