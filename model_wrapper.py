@@ -10,6 +10,7 @@ from keras.optimizers import SGD
 from keras.utils import np_utils
 
 from helpers.printhelper import PrintHelper as ph
+from helpers.printhelper import print_cm
 from model_layers.discriminatory_filter import DiscriminatoryFilter
 
 import numpy as np
@@ -34,25 +35,6 @@ from helpers.mathhelper import *
 from kmeans_handler import KMeansHandler
 
 import matplotlib.pyplot as plt
-
-
-def get_closest_anchor(xy, anchor_vecs):
-    x, y = xy
-    # Get the closest anchor vector for this sample.
-    min_dist = 100000.0
-    select_index = -1
-    for i, anchor_vec in enumerate(anchor_vecs):
-        #x = x.reshape(-1, 1)
-        #anchor_vec = anchor_vec.reshape(-1, 1)
-        #dist = np.linalg.norm(x - anchor_vec)
-        #dist = euclidean_distances(x, anchor_vec)
-        #dist = cosine_dist(x, anchor_vec)
-        if dist < min_dist:
-            min_dist = dist
-            select_index = i
-
-    assert (select_index != -1), "No final layer vectors"
-    return (x, y, select_index)
 
 
 class ModelWrapper(object):
@@ -229,6 +211,10 @@ class ModelWrapper(object):
 
         anchor_vecs = get_anchor_vectors(self)
         final_fc_anchor_vecs = anchor_vecs[-1]
+
+        similarities = cosine_similarity(final_fc_anchor_vecs)
+        print_cm(similarities, ['%i' % i for i in range(len(final_fc_anchor_vecs))])
+
         output_count = len(final_fc_anchor_vecs)
 
         for i, cluster_samples in enumerate(self.sample_mapping):
@@ -244,12 +230,11 @@ class ModelWrapper(object):
         train_x = train_x.reshape(-1, 1, 28, 28)
         # Train the model.
         self.model.fit(train_x, train_y, batch_size = self.hyperparams.batch_size,
-                nb_epoch=10, verbose=1)
+                nb_epoch=5, verbose=1)
 
-        preds = self.model.predict(self.all_train_x,
-                batch_size=self.hyperparams.batch_size, verbose=1)
+        preds = self.model.predict(self.all_train_x,)
+        preds = np.argmax(preds, axis=-1)
 
-        preds = convert_onehot_to_index(preds)
         actuals = convert_onehot_to_index(self.all_train_y)
 
         pred_to_actual = {}
@@ -262,7 +247,10 @@ class ModelWrapper(object):
             else:
                 pred_to_actual[pred][actual] = 1
 
-        for pred in pred_to_actual:
+        total_fracs = [0.0] * output_count
+
+        total_fracs_i = 0
+        for pred in sorted(pred_to_actual):
             actual_freq = pred_to_actual[pred]
 
             actual_freq = sorted(actual_freq.items(),
@@ -274,13 +262,20 @@ class ModelWrapper(object):
                 total += freq
 
             tmp_i = 0
-            print('For prection %i' % (pred))
+            ph.disp('For prection %i, %i' % (pred, int(total)))
             for actual, freq in actual_freq:
-                print('   %i: %.2f%%' % (actual, 100. * (freq / float(total))))
+                pred_fraction = (freq / float(total))
+                if tmp_i == 0:
+                    total_fracs[total_fracs_i] = pred_fraction
+                    total_fracs_i += 1
+                ph.disp('   %i: %.2f%%' % (actual, 100. * pred_fraction))
                 tmp_i += 1
-                if tmp_i >= 3:
+                if tmp_i >= 2:
                     break
 
+        total_fracs_avg = np.mean(total_fracs)
+
+        ph.disp('Average %.2f' % (total_fracs_avg * 100.))
 
 
     def train_model(self):
@@ -545,13 +540,7 @@ class ModelWrapper(object):
         final_fc_anchor_vecs = preprocessing.normalize(final_fc_anchor_vecs,
                 norm='l2')
 
-        get_closest_f = partial(get_closest_anchor,
-                anchor_vecs = final_fc_anchor_vecs)
-
-        with Pool(processes=cpu_count()) as p:
-            sample_anchor_vecs = p.map(get_closest_f, train_xy)
-
-        return sample_anchor_vecs
+        return get_closest_vectors(final_fc_anchor_vecs, train_xy)
 
 
     def get_closest_anchor_vecs(self, k):

@@ -34,12 +34,6 @@ def get_hyperparams():
     A convenience function more than anything.
     """
 
-    # The selection percentages are an incredibly sensitive
-    # hyperparameter.
-
-    #TODO:
-    # Make the model less sensitive to the selection percentage
-
     # The selection percentages define the (x_i * 100.)% that should be taken
     # at layer i. For instance with the below numbers 30% of the max variance samples
     # will be selected at each layer of the network.
@@ -51,9 +45,6 @@ def get_hyperparams():
     # network and are used in the k-means calculations to set the anchor vectors.
     # Note that I was able to obtain over 30% accuracy with 30,000 cluster count.
     # I am using 2,000 below because it is faster for testing.
-
-    #TODO:
-    # Allow cluster count to scale.
 
     return HyperParamData(
         input_shape = (1, 28, 28),
@@ -84,11 +75,11 @@ def single_test():
     force_create = [False, False, False, False, True]
     model = ModelAnalyzer(hyperparams, force_create=force_create)
     model.create_model()
+    model.adaptive_train()
     #model.eval_performance()
     #model.train_model()
     #model.test_model()
-    model.post_eval()
-    model.adaptive_train()
+    #model.post_eval()
 
     #add_trainer = AddTrainer(model)
     #add_trainer.disp_clusters()

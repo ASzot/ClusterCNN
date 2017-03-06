@@ -8,13 +8,45 @@ from sklearn.metrics.pairwise import cosine_similarity
 from helpers.printhelper import PrintHelper as ph
 import random
 import pickle
+from functools import partial
+from multiprocessing import Pool
 from multiprocessing import cpu_count
+from scipy.spatial.distance import cosine as cosine_dist
 
 
 def get_freq_percents(labels):
     y = np.bincount(labels)
     ii = np.nonzero(y)[0]
     return np.vstack((ii,y[ii])).T
+
+
+def get_closest_anchor(xy, anchor_vecs):
+    x, y = xy
+    # Get the closest anchor vector for this sample.
+    min_dist = 100000.0
+    select_index = -1
+    for i, anchor_vec in enumerate(anchor_vecs):
+        #x = x.reshape(-1, 1)
+        #anchor_vec = anchor_vec.reshape(-1, 1)
+        #dist = np.linalg.norm(x - anchor_vec)
+        #dist = euclidean_distances(x, anchor_vec)
+        dist = cosine_dist(x, anchor_vec)
+        if dist < min_dist:
+            min_dist = dist
+            select_index = i
+
+    assert (select_index != -1), "No final layer vectors"
+    return (x, y, select_index)
+
+
+def get_closest_vectors(ref_vecs, compare_vecs):
+    get_closest_f = partial(get_closest_anchor,
+            anchor_vecs = ref_vecs)
+
+    with Pool(processes=cpu_count()) as p:
+        sample_anchor_vecs = p.map(get_closest_f, compare_vecs)
+
+    return sample_anchor_vecs
 
 
 def subtract_mean(cluster_vec):
@@ -137,12 +169,12 @@ def plot_samples(samples, anchor_vecs, labels, show_plt=None):
         plt.show()
 
 
-
 def convert_index_to_onehot(indicies, num_classes):
     for index in indicies:
         vec = np.zeros(num_classes)
         vec[index] = 1.0
         yield vec
+
 
 def convert_onehot_to_index(vectors):
     indicies = []

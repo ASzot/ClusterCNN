@@ -27,6 +27,7 @@ import collections
 import operator
 
 from helpers.printhelper import PrintHelper as ph
+from helpers.mathhelper import get_closest_vectors
 from helpers.mathhelper import plot_samples
 from helpers.mathhelper import subtract_mean
 from helpers.mathhelper import get_freq_percents
@@ -347,8 +348,15 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
     pre_txt = '---' * branch_depth
     ph.disp(pre_txt + 'At branch depth %i' % branch_depth)
     layer_centroids, labels = kmeans(layer_cluster_vecs, k, batch_size)
+    # We will compute our own labels.
+    closest_anchor_vecs = get_closest_vectors(layer_centroids, list(zip(layer_cluster_vecs,
+        all_train_y)))
+
+    labels = [closest_anchor_vec[2] for closest_anchor_vec in
+            closest_anchor_vecs]
 
     labels = np.array(labels)
+    print(labels.shape)
     sample_size = 5000
 
     ph.disp(pre_txt + 'Computing silhouette scores')
@@ -359,61 +367,76 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 
     ph.disp(pre_txt + 'SH: ' + str(cluster_score))
 
-    layer_centroids = post_process_centroids(layer_centroids).tolist()
+    #layer_centroids = post_process_centroids(layer_centroids).tolist()
 
     final_centroids = []
+    all_ratios = []
+    accounted_for = []
 
-    if can_recur:
-        for i in range(k):
-            this_cluster = []
-            real_labels = []
-            real_samples = []
-            for j, label in enumerate(labels):
-                if label == i:
-                    this_cluster.append(layer_cluster_vecs[j])
-                    real_labels.append(all_train_y[j])
-                    real_samples.append(all_train_x[j])
+    for i in range(k):
+        this_cluster = []
+        real_labels = []
+        real_samples = []
+        for j, label in enumerate(labels):
+            if label == i:
+                this_cluster.append(layer_cluster_vecs[j])
+                real_labels.append(all_train_y[j])
+                real_samples.append(all_train_x[j])
 
-            label_freqs = list(get_freq_percents(real_labels))
-            label_freqs = sorted(label_freqs, key=lambda x: x[1], reverse=True)
+        label_freqs = list(get_freq_percents(real_labels))
+        label_freqs = sorted(label_freqs, key=lambda x: x[1], reverse=True)
 
-            total_str = ''
-            for label, freq in label_freqs[0:3]:
-                total_str += '     %i: %.1f ' % (label, 100.0 * (freq /
-                    float(len(this_cluster))))
+        total_str = ''
 
-            this_cluster = np.array(this_cluster)
+        for label, freq in label_freqs[0:3]:
+            total_str += '     %i: %.1f ' % (label, 100.0 * (freq /
+                float(len(this_cluster))))
 
-            this_cluster_std = np.var(this_cluster)
-            this_cluster_avg = np.mean(this_cluster)
+        top_label, top_freq = label_freqs[0]
+        all_ratios.append(top_freq / float(len(this_cluster)))
+        accounted_for.append(top_label)
 
-            ph.disp(pre_txt + '%i) C: %i, S: %.5f, M: %.5f' % (i, len(this_cluster),
-                this_cluster_std, this_cluster_avg))
+        this_cluster = np.array(this_cluster)
 
-            if (label_freqs[0][1] / float(len(this_cluster))) < 0.6:
-                disp_color = ph.FAIL
-            else:
-                disp_color = ph.OKGREEN
+        this_cluster_std = np.var(this_cluster)
+        this_cluster_avg = np.mean(this_cluster)
 
-            ph.disp(pre_txt + total_str, disp_color)
+        ph.disp(pre_txt + '%i) C: %i, S: %.5f, M: %.5f' % (i, len(this_cluster),
+            this_cluster_std, this_cluster_avg))
 
-            # Should divide the cluster even further?
-            if len(this_cluster) > min_cluster_samples and max_std < this_cluster_std:
-                ph.linebreak()
-                ph.disp(pre_txt + 'Branching cluster')
-                print('this cluster shape ' + str(this_cluster.shape))
+        if (label_freqs[0][1] / float(len(this_cluster))) < 0.6:
+            disp_color = ph.FAIL
+        else:
+            disp_color = ph.OKGREEN
 
-                sub_mapping = {}
-                sub_layer_centroids = recur_apply_kmeans(this_cluster, 2,
-                        batch_size, min_cluster_samples, max_std, can_recur,
-                        real_labels, all_train_x, sub_mapping, branch_depth + 1)
-                ph.linebreak()
+        ph.disp(pre_txt + total_str, disp_color)
 
-                mappings[i] = sub_mapping
-                final_centroids.extend(sub_layer_centroids)
-            else:
-                mappings[i] = real_samples
-                final_centroids.append(layer_centroids[i])
+        # Should divide the cluster even further?
+        if can_recur and len(this_cluster) > min_cluster_samples and max_std < this_cluster_std:
+            ph.linebreak()
+            ph.disp(pre_txt + 'Branching cluster')
+
+            sub_mapping = {}
+            sub_layer_centroids = recur_apply_kmeans(this_cluster, 2,
+                    batch_size, min_cluster_samples, max_std, can_recur,
+                    real_labels, all_train_x, sub_mapping, branch_depth + 1)
+            ph.linebreak()
+
+            mappings[i] = sub_mapping
+            final_centroids.extend(sub_layer_centroids)
+        else:
+            mappings[i] = real_samples
+            final_centroids.append(layer_centroids[i])
+
+    avg_ratio = np.mean(all_ratios)
+
+    accounted_for = list(set(accounted_for))
+    accounted_for_std = np.std(accounted_for)
+    opt_accounted_for_std = np.std(range(10))
+    accounted_for_std_ratio = accounted_for_std / opt_accounted_for_std
+
+    #ph.disp(pre_txt + 'Avg Ratio %.2f' % avg_ratio)
+    #ph.disp(pre_txt + 'Accounted For %.2f' % accounted_for_std_ratio)
 
     return final_centroids
 
@@ -421,18 +444,19 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        layer_cluster_vecs = preprocessing.scale(layer_cluster_vecs)
+        #layer_cluster_vecs = preprocessing.scale(layer_cluster_vecs)
         layer_cluster_vecs = preprocessing.normalize(layer_cluster_vecs, norm='l2')
 
     print('The cur layer is %i' % cur_layer)
     max_std = 0.01
-    min_samples_percentage = 0.05
+    min_samples_percentage = 0.1
 
     # The minimum # of samples per cluster.
     # Note that this rule always has precedence over the max std rule.
     min_cluster_samples = int(len(layer_cluster_vecs) * min_samples_percentage)
 
     can_recur = (cur_layer == 4)
+    #can_recur = False
 
     if can_recur:
         ph.disp('The max std per cluster:       %.4f' % max_std)
@@ -440,10 +464,11 @@ def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
 
     train_y = convert_onehot_to_index(model_wrapper.all_train_y)
 
-    mapping = {}
-    all_centroids = recur_apply_kmeans(layer_cluster_vecs, k, batch_size,
-            min_cluster_samples, max_std, can_recur, train_y,
-            model_wrapper.all_train_x, mapping)
+    for i in [10]:
+        mapping = {}
+        all_centroids = recur_apply_kmeans(layer_cluster_vecs, i, batch_size,
+                min_cluster_samples, max_std, can_recur, train_y,
+                model_wrapper.all_train_x, mapping)
 
     model_wrapper.set_mapping(mapping)
 
