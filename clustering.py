@@ -367,11 +367,12 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 
     ph.disp(pre_txt + 'SH: ' + str(cluster_score))
 
-    #layer_centroids = post_process_centroids(layer_centroids).tolist()
+    layer_centroids = post_process_centroids(layer_centroids).tolist()
 
     final_centroids = []
     all_ratios = []
     accounted_for = []
+    all_vars = []
 
     for i in range(k):
         this_cluster = []
@@ -382,6 +383,8 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
                 this_cluster.append(layer_cluster_vecs[j])
                 real_labels.append(all_train_y[j])
                 real_samples.append(all_train_x[j])
+
+        all_vars.append(np.var(this_cluster))
 
         label_freqs = list(get_freq_percents(real_labels))
         label_freqs = sorted(label_freqs, key=lambda x: x[1], reverse=True)
@@ -401,15 +404,15 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
         this_cluster_std = np.var(this_cluster)
         this_cluster_avg = np.mean(this_cluster)
 
-        ph.disp(pre_txt + '%i) C: %i, S: %.5f, M: %.5f' % (i, len(this_cluster),
-            this_cluster_std, this_cluster_avg))
+        #ph.disp(pre_txt + '%i) C: %i, S: %.5f, M: %.5f' % (i, len(this_cluster),
+        #    this_cluster_std, this_cluster_avg))
 
         if (label_freqs[0][1] / float(len(this_cluster))) < 0.6:
             disp_color = ph.FAIL
         else:
             disp_color = ph.OKGREEN
 
-        ph.disp(pre_txt + total_str, disp_color)
+        #ph.disp(pre_txt + total_str, disp_color)
 
         # Should divide the cluster even further?
         if can_recur and len(this_cluster) > min_cluster_samples and max_std < this_cluster_std:
@@ -432,11 +435,12 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 
     accounted_for = list(set(accounted_for))
     accounted_for_std = np.std(accounted_for)
-    opt_accounted_for_std = np.std(range(10))
-    accounted_for_std_ratio = accounted_for_std / opt_accounted_for_std
+    #opt_accounted_for_std = np.std(range(10))
+    #accounted_for_std_ratio = accounted_for_std / opt_accounted_for_std
 
     #ph.disp(pre_txt + 'Avg Ratio %.2f' % avg_ratio)
     #ph.disp(pre_txt + 'Accounted For %.2f' % accounted_for_std_ratio)
+    ph.disp(pre_txt + 'Average Cluster Variance %.6f' % np.mean(all_vars))
 
     return final_centroids
 
@@ -444,19 +448,19 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        #layer_cluster_vecs = preprocessing.scale(layer_cluster_vecs)
+        layer_cluster_vecs = preprocessing.scale(layer_cluster_vecs)
         layer_cluster_vecs = preprocessing.normalize(layer_cluster_vecs, norm='l2')
 
     print('The cur layer is %i' % cur_layer)
     max_std = 0.01
-    min_samples_percentage = 0.1
+    min_samples_percentage = 0.01
 
     # The minimum # of samples per cluster.
     # Note that this rule always has precedence over the max std rule.
     min_cluster_samples = int(len(layer_cluster_vecs) * min_samples_percentage)
 
     can_recur = (cur_layer == 4)
-    #can_recur = False
+    can_recur = False
 
     if can_recur:
         ph.disp('The max std per cluster:       %.4f' % max_std)
@@ -464,11 +468,10 @@ def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
 
     train_y = convert_onehot_to_index(model_wrapper.all_train_y)
 
-    for i in [10]:
-        mapping = {}
-        all_centroids = recur_apply_kmeans(layer_cluster_vecs, i, batch_size,
-                min_cluster_samples, max_std, can_recur, train_y,
-                model_wrapper.all_train_x, mapping)
+    mapping = {}
+    all_centroids = recur_apply_kmeans(layer_cluster_vecs, k, batch_size,
+            min_cluster_samples, max_std, can_recur, train_y,
+            model_wrapper.all_train_x, mapping)
 
     model_wrapper.set_mapping(mapping)
 

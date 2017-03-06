@@ -53,14 +53,14 @@ def get_hyperparams():
         filter_size=(5,5),
         batch_size = 5,
         nkerns = (6,16),
-        fc_sizes = (180, 84, 10,),
+        fc_sizes = (180, 84, 40,),
         n_epochs = 10,
         selection_counts = selection,
         activation_func = 'relu',
         extra_path = '',
         should_set_weights = [True] * 5,
         should_eval = True,
-        remaining = 0,
+        remaining = 100,
         cluster_count = 10000)
 
 
@@ -72,14 +72,15 @@ def single_test():
 
     hyperparams = get_hyperparams()
     hyperparams.extra_path = 'kmeans'
-    force_create = [False, False, False, False, True]
+    force_create = [False, False, False, True, True]
     model = ModelAnalyzer(hyperparams, force_create=force_create)
     model.create_model()
     model.adaptive_train()
     #model.eval_performance()
+    #model.test_model()
     #model.train_model()
     #model.test_model()
-    #model.post_eval()
+    model.post_eval()
 
     #add_trainer = AddTrainer(model)
     #add_trainer.disp_clusters()

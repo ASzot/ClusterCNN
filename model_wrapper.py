@@ -150,7 +150,7 @@ class ModelWrapper(object):
             centroid_weights = kmeans_handler.handle_kmeans(offset_index, 'f' + str(i), fc_sizes[i],
                     input_shape, output_shape, f_fc_out, False, assert_shape = assert_shape)
 
-            if centroid_weights.shape[1] != fc_sizes[i]:
+            if should_set_weights[offset_index] and centroid_weights.shape[1] != fc_sizes[i]:
                 # Made automatic adjustment to the # of clusters.
                 ph.disp('Adjusting %i to %i anchor vectors for layer %i' %
                         (fc_sizes[i], centroid_weights.shape[1], offset_index))
@@ -212,8 +212,8 @@ class ModelWrapper(object):
         anchor_vecs = get_anchor_vectors(self)
         final_fc_anchor_vecs = anchor_vecs[-1]
 
-        similarities = cosine_similarity(final_fc_anchor_vecs)
-        print_cm(similarities, ['%i' % i for i in range(len(final_fc_anchor_vecs))])
+        #similarities = cosine_similarity(final_fc_anchor_vecs)
+        #print_cm(similarities, ['%i' % i for i in range(len(final_fc_anchor_vecs))])
 
         output_count = len(final_fc_anchor_vecs)
 
@@ -232,10 +232,16 @@ class ModelWrapper(object):
         self.model.fit(train_x, train_y, batch_size = self.hyperparams.batch_size,
                 nb_epoch=5, verbose=1)
 
-        preds = self.model.predict(self.all_train_x,)
+        #test_x = self.all_test_x.reshape(-1, 784)
+        #test_x = preprocessing.scale(test_x)
+        #test_x = preprocessing.normalize(test_x, norm='l2')
+        #test_x = test_x.reshape(-1, 1, 28, 28)
+        test_x = self.all_test_x
+
+        preds = self.model.predict(test_x)
         preds = np.argmax(preds, axis=-1)
 
-        actuals = convert_onehot_to_index(self.all_train_y)
+        actuals = convert_onehot_to_index(self.all_test_y)
 
         pred_to_actual = {}
         for pred, actual in zip(preds, actuals):
@@ -262,7 +268,7 @@ class ModelWrapper(object):
                 total += freq
 
             tmp_i = 0
-            ph.disp('For prection %i, %i' % (pred, int(total)))
+            ph.disp('For prediction %i, %i' % (pred, int(total)))
             for actual, freq in actual_freq:
                 pred_fraction = (freq / float(total))
                 if tmp_i == 0:
@@ -279,7 +285,6 @@ class ModelWrapper(object):
 
 
     def train_model(self):
-        keras_plot(self.model, to_file='data/model.png', show_shapes=True)
         """
         Train the model the number of samples specified by
         the 'remaining' hyperparameter.
@@ -418,12 +423,16 @@ class ModelWrapper(object):
 
         one_hot_train = convert_onehot_to_index(self.all_train_y)
 
+        anchor_vecs = get_anchor_vectors(self)
+        final_avs = anchor_vecs[-1]
+
         pred_counts = []
         actual_counts = []
-        max_val = 9
+        max_val = len(final_avs)
         min_val = 0
         pred_clusters = []
-        for i in range(min_val, max_val + 1):
+
+        for i in range(min_val, max_val):
             comb = zip(one_hot_pred, one_hot_train)
             pred_cluster = [actual for pred, actual in comb if pred == i]
             pred_clusters.append(pred_cluster)
@@ -496,10 +505,14 @@ class ModelWrapper(object):
         """
         Remap the train_y and test_y values.
         """
+        anchor_vecs = get_anchor_vectors(self)
+        final_avs = anchor_vecs[-1]
+
         indc_y_vals = convert_onehot_to_index(y_vals)
         mapped_inc_y_vals = [self.actual_to_pred[y_val] for y_val in indc_y_vals]
 
-        return np.array(list(convert_index_to_onehot(mapped_inc_y_vals, 10)))
+        return np.array(list(convert_index_to_onehot(mapped_inc_y_vals,
+            len(final_avs))))
 
 
     def get_closest_anchor_vecs_for_samples(self, use_data=None):
