@@ -25,6 +25,7 @@ from multiprocessing import cpu_count
 from functools import partial
 import collections
 import operator
+import uuid
 
 from helpers.printhelper import PrintHelper as ph
 from helpers.mathhelper import get_closest_vectors
@@ -77,9 +78,53 @@ def kmeans(input_data, k, batch_size, metric='sp'):
 
     elif metric == 'sp':
         # Spherical clustering.
-        skm = SphericalKMeans(n_clusters=k, n_jobs=-1)
-        skm.fit(input_data)
-        return skm.cluster_centers_, skm.labels_
+
+        all_search_data = []
+        min_index = -1
+        min_cluster_centers = []
+        min_labels = []
+
+        cur_index = 0
+        for search_k in [k]:
+            search_k = int(search_k)
+            try:
+                skm = SphericalKMeans(n_clusters=search_k, n_jobs=-1)
+                skm.fit(input_data)
+            except:
+                continue
+            labels = skm.labels_
+
+            cluster_score = silhouette_score(input_data, labels, metric = 'cosine',
+                    sample_size=5000)
+
+            all_var = []
+            for i in range(search_k):
+                this_cluster = []
+                for j, point in enumerate(input_data):
+                    if labels[j] == i:
+                        this_cluster.append(point)
+
+                this_cluster_var = np.var(this_cluster)
+                all_var.append(this_cluster_var)
+
+            avg_var = np.mean(all_var)
+
+            ph.disp('|   search k at %i got %.6f, %.4f' % (search_k, avg_var,
+                cluster_score))
+
+            if min_index == -1 or cluster_score > all_search_data[min_index][0]:
+                min_index = cur_index
+                min_cluster_centers = skm.cluster_centers_
+                min_labels = labels
+
+            all_search_data.append((cluster_score, avg_var))
+
+            cur_index += 1
+
+        #with open('data/' + str(uuid.uuid4()) + '.dat') as f:
+        #    pickle.dump(all_search_data, f)
+
+        return min_cluster_centers, min_labels
 
     elif metric == 'vmfmh':
         # VonMisesFisherMixtureHard
@@ -344,11 +389,20 @@ def post_process_centroids(centroids):
 
 
 def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
-        max_std, can_recur, all_train_y, all_train_x, mappings, branch_depth = 0):
+        max_std, can_recur, all_train_y, all_train_x, mappings, cur_layer, branch_depth = 0):
     pre_txt = '---' * branch_depth
     ph.disp(pre_txt + 'At branch depth %i' % branch_depth)
     layer_centroids, labels = kmeans(layer_cluster_vecs, k, batch_size)
     # We will compute our own labels.
+    print('There are %i centroids %i layer cluster_vecs and %i y train samples'
+            % (len(layer_centroids), len(layer_cluster_vecs),
+                len(all_train_y)))
+
+    layer_centroids = post_process_centroids(layer_centroids).tolist()
+
+    if cur_layer != 3:
+        return layer_centroids
+
     closest_anchor_vecs = get_closest_vectors(layer_centroids, list(zip(layer_cluster_vecs,
         all_train_y)))
 
@@ -356,18 +410,15 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
             closest_anchor_vecs]
 
     labels = np.array(labels)
-    print(labels.shape)
     sample_size = 5000
 
-    ph.disp(pre_txt + 'Computing silhouette scores')
-    cluster_score = silhouette_score(layer_cluster_vecs, labels, metric = 'cosine',
-            sample_size=sample_size)
-    samples_scores = silhouette_samples(layer_cluster_vecs, labels, metric='cosine')
-    ph.disp(pre_txt + 'Finished computing silhouette scores')
+    #ph.disp(pre_txt + 'Computing silhouette scores')
+    #cluster_score = silhouette_score(layer_cluster_vecs, labels, metric = 'cosine',
+    #        sample_size=sample_size)
+    #samples_scores = silhouette_samples(layer_cluster_vecs, labels, metric='cosine')
+    #ph.disp(pre_txt + 'Finished computing silhouette scores')
 
-    ph.disp(pre_txt + 'SH: ' + str(cluster_score))
-
-    layer_centroids = post_process_centroids(layer_centroids).tolist()
+    #ph.disp(pre_txt + 'SH: ' + str(cluster_score))
 
     final_centroids = []
     all_ratios = []
@@ -422,7 +473,7 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
             sub_mapping = {}
             sub_layer_centroids = recur_apply_kmeans(this_cluster, 2,
                     batch_size, min_cluster_samples, max_std, can_recur,
-                    real_labels, all_train_x, sub_mapping, branch_depth + 1)
+                    real_labels, all_train_x, sub_mapping, cur_layer, branch_depth + 1)
             ph.linebreak()
 
             mappings[i] = sub_mapping
@@ -448,7 +499,7 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        layer_cluster_vecs = preprocessing.scale(layer_cluster_vecs)
+        #layer_cluster_vecs = preprocessing.scale(layer_cluster_vecs)
         layer_cluster_vecs = preprocessing.normalize(layer_cluster_vecs, norm='l2')
 
     print('The cur layer is %i' % cur_layer)
@@ -471,7 +522,7 @@ def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
     mapping = {}
     all_centroids = recur_apply_kmeans(layer_cluster_vecs, k, batch_size,
             min_cluster_samples, max_std, can_recur, train_y,
-            model_wrapper.all_train_x, mapping)
+            model_wrapper.all_train_x, mapping, cur_layer)
 
     model_wrapper.set_mapping(mapping)
 
@@ -513,6 +564,9 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
     centroids = centroids.reshape(-1, cs[0] * cs[2])
     ph.disp('Centroids now have shape %s' % str(centroids.shape))
+
+    #if layer_index == 2:
+    #    raise ValueError()
 
     return centroids
 

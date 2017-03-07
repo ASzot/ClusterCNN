@@ -1,6 +1,6 @@
 # Uncomment these lines if running on macOS it will speed up graphing.
-import matplotlib
-matplotlib.use('Agg')
+#import matplotlib
+#matplotlib.use('Agg')
 #matplotlib.use('TkAgg')
 
 import matplotlib.pyplot as plt
@@ -38,7 +38,7 @@ def get_hyperparams():
     # at layer i. For instance with the below numbers 30% of the max variance samples
     # will be selected at each layer of the network.
     #selection = [0.004, 0.001, 0.01, 0.008, 0.008]
-    selection = [25000, 25000, 40000, 40000, 40000]
+    selection = [25000, 25000, None, None, None]
 
     # The cluster count is another highly sensitive parameter.
     # The cluster count defines how many of the samples are passed through the
@@ -53,7 +53,7 @@ def get_hyperparams():
         filter_size=(5,5),
         batch_size = 5,
         nkerns = (6,16),
-        fc_sizes = (180, 84, 40,),
+        fc_sizes = (128, 60,),
         n_epochs = 10,
         selection_counts = selection,
         activation_func = 'relu',
@@ -72,7 +72,7 @@ def single_test():
 
     hyperparams = get_hyperparams()
     hyperparams.extra_path = 'kmeans'
-    force_create = [False, False, False, True, True]
+    force_create = [True, True, True, True, True]
     model = ModelAnalyzer(hyperparams, force_create=force_create)
     model.create_model()
     model.adaptive_train()

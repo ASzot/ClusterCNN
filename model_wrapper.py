@@ -230,7 +230,7 @@ class ModelWrapper(object):
         train_x = train_x.reshape(-1, 1, 28, 28)
         # Train the model.
         self.model.fit(train_x, train_y, batch_size = self.hyperparams.batch_size,
-                nb_epoch=5, verbose=1)
+                nb_epoch=10, verbose=1)
 
         #test_x = self.all_test_x.reshape(-1, 784)
         #test_x = preprocessing.scale(test_x)

@@ -65,7 +65,8 @@ def plot_samples(samples, anchor_vecs, labels, show_plt=None):
     labels = labels[0:tsne_use_samples]
 
     if ndim == 2:
-        tsne_model = MultiCoreTSNE(metric = 'cosine', n_jobs=cpu_count())
+        #tsne_model = MultiCoreTSNE(metric = 'cosine', n_jobs=cpu_count())
+        tsne_model = TSNE(n_components=2, metric='cosine', verbose=True)
     else:
         tsne_model = TSNE(n_components=3, metric='cosine', verbose=True)
 
@@ -74,30 +75,35 @@ def plot_samples(samples, anchor_vecs, labels, show_plt=None):
 
     all_data = []
     all_data.extend(samples)
-    all_data.extend(anchor_vecs)
+    if anchor_vecs is not None:
+        all_data.extend(anchor_vecs)
 
     all_data = np.array(all_data, dtype='float64')
 
     # normalize all of the input vectors.
-    #all_data = preprocessing.normalize(all_data)
+    all_data = preprocessing.normalize(all_data)
 
-    #transformed_all_data = tsne_model.fit_transform(all_data)
+    transformed_all_data = tsne_model.fit_transform(all_data)
 
     #with open('data/vis_data/asdf.h5', 'wb') as f:
     #    pickle.dump(transformed_all_data, f)
 
-    with open('data/vis_data/asdf.h5', 'rb') as f:
-        transformed_all_data = pickle.load(f)
+    #with open('data/vis_data/asdf.h5', 'rb') as f:
+    #    transformed_all_data = pickle.load(f)
 
-    av_count = len(anchor_vecs)
-    if post_normalize:
-        transformed_all_data = preprocessing.normalize(transformed_all_data)
-    vis_data = transformed_all_data[:-av_count]
-    plot_avs = transformed_all_data[-av_count:]
+    if anchor_vecs is not None:
+        av_count = len(anchor_vecs)
+        if post_normalize:
+            transformed_all_data = preprocessing.normalize(transformed_all_data)
+        vis_data = transformed_all_data[:-av_count]
+        plot_avs = transformed_all_data[-av_count:]
+    else:
+        vis_data = transformed_all_data
+        plot_avs = []
 
     ph.disp('Done fitting data')
 
-    print('The shape is ' + str(vis_data.shape))
+    ph.disp('The shape is ' + str(vis_data.shape))
     ph.disp('There are %i samples to plot' % len(vis_data))
     if len(vis_data) > tsne_plot_samples:
         all_data = random.sample(list(vis_data), tsne_plot_samples)
@@ -139,7 +145,7 @@ def plot_samples(samples, anchor_vecs, labels, show_plt=None):
                 plot_dimensions.append(sampleOfClass[:,dim])
 
             use_plt.scatter(*plot_dimensions, c = colors[colors_index],
-                    marker='o')
+                    marker='o', s=40)
 
         colors_map.append(colors[colors_index])
 

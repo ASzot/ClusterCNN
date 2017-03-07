@@ -35,13 +35,16 @@ class DiscriminatoryFilter(object):
     def get_sorted(self, samples):
         variances = np.var(samples, axis=1)
         per_sample_avg = np.mean(variances)
+        per_sample_std = np.std(variances)
 
         sample_variances = list(zip(samples, variances))
 
-        toss_thresh = per_sample_avg
         ph.disp('-----Filtering out values to make sorting easier')
-        sample_variances = [(sample, variance) for sample, variance in sample_variances if variance > toss_thresh]
-        ph.disp('-----Filtered out values to make sorting easier')
+        before_len = len(sample_variances)
+        sample_variances = [(sample, variance) for sample, variance in
+                sample_variances if variance > (per_sample_avg)]
+        ph.disp('-----Filtered out %i values to make sorting easier' %
+                (before_len - len(sample_variances)))
 
         ph.disp('-----Beginning sort')
         sample_variances = sorted(sample_variances, key = lambda x: -x[1])
@@ -53,6 +56,14 @@ class DiscriminatoryFilter(object):
         else:
             ph.disp('-----Left with %i samples' % (len(samples)))
 
+        #if self.selection_count is not None:
+        #    selected_samples = []
+        #    for i in np.arange(self.selection_count):
+        #        select_index = np.random.randint(len(samples))
+        #        selected_samples.append(samples[select_index])
+        #        del samples[select_index]
+
+        #    return np.array(selected_samples)
         return np.array(samples)
 
 
