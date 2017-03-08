@@ -26,6 +26,60 @@ class ModelAnalyzer(ModelWrapper):
     what is going on in the network.
     """
 
+    def prune_neurons(self):
+        ph.disp('Pruning network')
+        # Get the anchor vectors of the network.
+        anchor_vecs = list(get_anchor_vectors(self))
+
+        cs_thresh = 0.7
+
+        is_conv = [False] * len(anchor_vecs)
+
+        conv_out_shape = [None] * len(anchor_vecs)
+        for i in range(len(self.hyperparams.nkerns)):
+            is_conv[i] = True
+            if i == 0:
+                prev_kern = 1
+            else:
+                prev_kern = self.hyperparams.nkerns[i - 1]
+            conv_out_shape[i] = (-1, prev_kern,
+                    *self.hyperparams.filter_size)
+
+        for layer_index, av_layer in enumerate(anchor_vecs):
+            pre_len = len(av_layer)
+            av_layer = list(av_layer)
+
+            # Check if any two anchor vectors are very similar
+            for i, av in enumerate(av_layer):
+                # Check if close to any other anchor vectors
+                for j, comp_av in enumerate(av_layer):
+                    if i == j:
+                        continue
+
+                    av = np.array(av).reshape(1, -1)
+                    comp_av = np.array(comp_av).reshape(1, -1)
+
+                    cs = cosine_similarity(av, comp_av)
+                    if cs > cs_thresh:
+                        av_layer[j] = (av + comp_av) / 2.0
+                        del av_layer[i]
+                        break
+
+            anchor_vecs[layer_index] = av_layer
+            ph.disp('Layer %i: %i AVs compacted' % (layer_index, pre_len - len(av_layer)))
+
+        anchor_vecs = np.array(anchor_vecs)
+        for layer_index, av_layer in enumerate(anchor_vecs):
+            if is_conv[layer_index]:
+                print('Trying to change to %s' +
+                        str(conv_out_shape[layer_index]))
+                print('existing ' +
+                        str(np.array(anchor_vecs[layer_index]).shape))
+                anchor_vecs[layer_index] = np.array(anchor_vecs[layer_index]).reshape(conv_out_shape[layer_index])
+
+        set_avs(self.model, np.array(anchor_vecs))
+
+
     def perform_tsne(self):
         matching_samples_xy = list(self.get_closest_anchor_vecs())
 

@@ -273,6 +273,23 @@ def get_anchor_vector_angles(layer_anchor_vecs):
     return angles
 
 
+def set_avs(model, anchor_vectors):
+    anchor_vectors_index = 0
+    for i, layer in enumerate(model.layers):
+        params = layer.get_weights()
+        if len(params) > 0:
+            # This is a layer that has network parameters.
+            set_anchor_vector = np.array(anchor_vectors[anchor_vectors_index])
+            print('Setting anchor vector of shape ' +
+                    str(set_anchor_vector.shape))
+            anchor_vectors_index += 1
+            weights = params[0]
+            bias = params[1]
+            assert set_anchor_vector.shape == weights.shape, 'Anchor Vec Shape: %s, Weights Shape: %s' % (set_anchor_vector.shape, weights.shape)
+            # Does not matter if it is a convolution or fully connected layer.
+            model.layers[i].set_weights([set_anchor_vector, bias])
+
+
 def set_anchor_vectors(model, anchor_vectors, nkerns, filter_size):
     sps = [anchor_vector.shape for anchor_vector in anchor_vectors]
 
@@ -299,3 +316,4 @@ def set_anchor_vectors(model, anchor_vectors, nkerns, filter_size):
             assert set_anchor_vector.shape == weights.shape, 'Anchor Vec Shape: %s, Weights Shape: %s' % (set_anchor_vector.shape, weights.shape)
             # Does not matter if it is a convolution or fully connected layer.
             model.layers[i].set_weights([set_anchor_vector, bias])
+

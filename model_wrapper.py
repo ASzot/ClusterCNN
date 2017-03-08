@@ -216,6 +216,7 @@ class ModelWrapper(object):
         #print_cm(similarities, ['%i' % i for i in range(len(final_fc_anchor_vecs))])
 
         output_count = len(final_fc_anchor_vecs)
+        self.output_count = output_count
 
         for i, cluster_samples in enumerate(self.sample_mapping):
             train_x.extend(cluster_samples)
@@ -230,14 +231,11 @@ class ModelWrapper(object):
         train_x = train_x.reshape(-1, 1, 28, 28)
         # Train the model.
         self.model.fit(train_x, train_y, batch_size = self.hyperparams.batch_size,
-                nb_epoch=10, verbose=1)
+                nb_epoch=5, verbose=1)
 
-        #test_x = self.all_test_x.reshape(-1, 784)
-        #test_x = preprocessing.scale(test_x)
-        #test_x = preprocessing.normalize(test_x, norm='l2')
-        #test_x = test_x.reshape(-1, 1, 28, 28)
+
+    def adaptive_test(self):
         test_x = self.all_test_x
-
         preds = self.model.predict(test_x)
         preds = np.argmax(preds, axis=-1)
 
@@ -253,7 +251,7 @@ class ModelWrapper(object):
             else:
                 pred_to_actual[pred][actual] = 1
 
-        total_fracs = [0.0] * output_count
+        total_fracs = [0.0] * self.output_count
 
         total_fracs_i = 0
         for pred in sorted(pred_to_actual):
@@ -268,13 +266,13 @@ class ModelWrapper(object):
                 total += freq
 
             tmp_i = 0
-            ph.disp('For prediction %i, %i' % (pred, int(total)))
+            #ph.disp('For prediction %i, %i' % (pred, int(total)))
             for actual, freq in actual_freq:
                 pred_fraction = (freq / float(total))
                 if tmp_i == 0:
                     total_fracs[total_fracs_i] = pred_fraction
                     total_fracs_i += 1
-                ph.disp('   %i: %.2f%%' % (actual, 100. * pred_fraction))
+                #ph.disp('   %i: %.2f%%' % (actual, 100. * pred_fraction))
                 tmp_i += 1
                 if tmp_i >= 2:
                     break
@@ -337,7 +335,6 @@ class ModelWrapper(object):
 
             conv_layer.set_weights([weights, bias])
 
-
         activation_layer = Activation(activation_func)
 
         model.add(activation_layer)
@@ -347,6 +344,13 @@ class ModelWrapper(object):
         model.add(max_pooling_out)
 
         if flatten:
+            tmp_f = K.function([conv_layer.input], [max_pooling_out.output])
+            if weights is not None:
+                weights_shape = weights.shape
+                zeroes = np.zeros(weights_shape)
+                dummy_out = tmp_f([zeroes])
+                ph.disp('Preflattened shape ' + str(np.array(dummy_out[0]).shape))
+
             ph.disp('Flattening output')
             flatten_layer = Flatten()
             model.add(flatten_layer)

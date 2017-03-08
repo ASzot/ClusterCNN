@@ -32,17 +32,24 @@ class DiscriminatoryFilter(object):
         ph.disp('Outliers filtered')
 
 
-    def get_sorted(self, samples):
+    def get_sorted(self, samples, layer_index):
         variances = np.var(samples, axis=1)
         per_sample_avg = np.mean(variances)
         per_sample_std = np.std(variances)
 
         sample_variances = list(zip(samples, variances))
 
-        ph.disp('-----Filtering out values to make sorting easier')
+        if layer_index == 0:
+            thresh_var = per_sample_avg
+        elif layer_index == 1:
+            thresh_var = per_sample_avg
+        else:
+            thresh_var = per_sample_avg
+
+        ph.disp('-----Filtering out values lower than %.5f to make sorting easier' % (thresh_var))
         before_len = len(sample_variances)
         sample_variances = [(sample, variance) for sample, variance in
-                sample_variances if variance > (per_sample_avg)]
+                sample_variances if variance > (thresh_var)]
         ph.disp('-----Filtered out %i values to make sorting easier' %
                 (before_len - len(sample_variances)))
 
@@ -57,13 +64,10 @@ class DiscriminatoryFilter(object):
             ph.disp('-----Left with %i samples' % (len(samples)))
 
         #if self.selection_count is not None:
-        #    selected_samples = []
-        #    for i in np.arange(self.selection_count):
-        #        select_index = np.random.randint(len(samples))
-        #        selected_samples.append(samples[select_index])
-        #        del samples[select_index]
+        #    samples = np.array(samples)
+        #    return samples[np.random.choice(samples.shape[0],
+        #        self.selection_count, replace=False), :]
 
-        #    return np.array(selected_samples)
         return np.array(samples)
 
 

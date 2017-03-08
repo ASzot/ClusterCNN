@@ -148,7 +148,14 @@ def kmeans(input_data, k, batch_size, metric='sp'):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             mbk.fit(input_data)
-        return mbk.cluster_centers_, mbk.labels_
+
+        labels = mbk.labels_
+        cluster_score = silhouette_score(input_data, labels, metric = 'euclidean',
+                sample_size=5000)
+
+        ph.disp('Got a euclidean ss of %.2f' % (cluster_score))
+
+        return mbk.cluster_centers_, labels
 
 
 
@@ -390,6 +397,11 @@ def post_process_centroids(centroids):
 
 def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
         max_std, can_recur, all_train_y, all_train_x, mappings, cur_layer, branch_depth = 0):
+
+    #if cur_layer == 3:
+        #plot_samples(layer_cluster_vecs, None, all_train_y)
+        #raise ValueError()
+
     pre_txt = '---' * branch_depth
     ph.disp(pre_txt + 'At branch depth %i' % branch_depth)
     layer_centroids, labels = kmeans(layer_cluster_vecs, k, batch_size)
@@ -489,9 +501,11 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
     #opt_accounted_for_std = np.std(range(10))
     #accounted_for_std_ratio = accounted_for_std / opt_accounted_for_std
 
-    #ph.disp(pre_txt + 'Avg Ratio %.2f' % avg_ratio)
+    ph.disp(pre_txt + 'Avg Ratio %.2f' % avg_ratio)
     #ph.disp(pre_txt + 'Accounted For %.2f' % accounted_for_std_ratio)
-    ph.disp(pre_txt + 'Average Cluster Variance %.6f' % np.mean(all_vars))
+    #ph.disp(pre_txt + 'Average Cluster Variance %.6f' % np.mean(all_vars))
+    #ph.disp(pre_txt + 'Cluster Uniformity %.2f' % np.mean(
+
 
     return final_centroids
 
@@ -541,32 +555,28 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     if raw_save_loc != '':
         save_raw_image_patches(cluster_vecs, raw_save_loc)
 
-    centroids = []
-
     if convolute:
         cvs = cluster_vecs.shape
         cluster_vecs = cluster_vecs.reshape(cvs[1], cvs[0] * cvs[2])
 
-        cluster_vecs = filter_params.get_sorted(cluster_vecs)
+        cluster_vecs = filter_params.get_sorted(cluster_vecs, layer_index)
 
         #cluster_vecs = np.array(list(filter_params.filter_outliers(cluster_vecs)))
 
         cluster_vecs = cluster_vecs.reshape(cvs[0], -1, cvs[2])
 
-    for layer_cluster_vecs in cluster_vecs:
-        layer_centroids = apply_kmeans(layer_cluster_vecs, k, layer_index,
-                model_wrapper, batch_size)
+    cluster_vecs = np.array(cluster_vecs)
 
-        centroids.append(layer_centroids)
+    cs = cluster_vecs.shape
+    cluster_vecs = cluster_vecs.reshape(-1, cs[0] * cs[2])
 
-    centroids = np.array(centroids)
-    cs = centroids.shape
+    centroids = apply_kmeans(cluster_vecs, k, layer_index,
+            model_wrapper, batch_size)
 
-    centroids = centroids.reshape(-1, cs[0] * cs[2])
     ph.disp('Centroids now have shape %s' % str(centroids.shape))
 
-    #if layer_index == 2:
-    #    raise ValueError()
+    if layer_index == 1:
+        raise ValueError()
 
     return centroids
 
