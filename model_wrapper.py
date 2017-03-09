@@ -56,6 +56,13 @@ class ModelWrapper(object):
         self.accuracy           = None
 
 
+    def set_avg_ratio(self, avg_ratio):
+        self.avg_ratio = avg_ratio
+
+
+    def get_avg_ratio(self):
+        return self.avg_ratio
+
 
     def full_create(self, should_eval=True):
         """

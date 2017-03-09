@@ -37,8 +37,8 @@ def get_hyperparams():
     # The selection percentages define the (x_i * 100.)% that should be taken
     # at layer i. For instance with the below numbers 30% of the max variance samples
     # will be selected at each layer of the network.
-    #selection = [0.004, 0.001, 0.01, 0.008, 0.008]
-    selection = [80000, 4000, None, None, None]
+    #selection = [80000, 4000, 5000, None, None]
+    selection = [30000, 25000, None, None, None]
 
     # The cluster count is another highly sensitive parameter.
     # The cluster count defines how many of the samples are passed through the
@@ -52,8 +52,8 @@ def get_hyperparams():
         patches_subsample = (1,1),
         filter_size=(5,5),
         batch_size = 5,
-        nkerns = (6,8),
-        fc_sizes = (128, 40,),
+        nkerns = (6,16),
+        fc_sizes = (128, 60,),
         n_epochs = 10,
         selection_counts = selection,
         activation_func = 'relu',
@@ -61,7 +61,100 @@ def get_hyperparams():
         should_set_weights = [True] * 5,
         should_eval = True,
         remaining = 100,
-        cluster_count = 40000)
+        cluster_count = 10000)
+
+
+def search_test():
+    ph.DISP = False
+    ratios = []
+    max_k0 = 0
+    max_ratio = 0.0
+    for k0 in [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+            21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]:
+        hyperparams = get_hyperparams()
+        hyperparams.extra_path = 'kmeans'
+        hyperparams.nkers = (k0, 16)
+        force_create = [True, True, True, True]
+        model = ModelAnalyzer(hyperparams, force_create=force_create)
+        model.create_model()
+        avg_ratio = model.get_avg_ratio()
+        print(avg_ratio)
+        if avg_ratio > max_ratio:
+            max_k0 = k0
+            max_ratio = avg_ratio
+
+        ratios.append(avg_ratio)
+
+    with open('data/avg_ratio_c0.h5', 'wb') as f:
+        pickle.dump(ratios, f)
+
+    ratios = []
+    max_k1 = 0
+    max_ratio = 0.0
+    for k1 in [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+            21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]:
+        hyperparams = get_hyperparams()
+        hyperparams.extra_path = 'kmeans'
+        hyperparams.nkers = (max_k0, k1)
+        force_create = [True, True, True, True]
+        model = ModelAnalyzer(hyperparams, force_create=force_create)
+        model.create_model()
+        avg_ratio = model.get_avg_ratio()
+        if avg_ratio > max_ratio:
+            max_k1 = k1
+            max_ratio = avg_ratio
+
+        ratios.append(avg_ratio)
+
+    with open('data/avg_ratio_c1.h5', 'wb') as f:
+        pickle.dump(ratios, f)
+
+    ratios = []
+    max_f0 = 0
+    max_ratio = 0.0
+    for f0 in range(60, 180, 5):
+        hyperparams = get_hyperparams()
+        hyperparams.extra_path = 'kmeans'
+        hyperparams.nkers = (max_k0, max_k1)
+        hyperparams.fc_sizes = (f0, 60)
+        force_create = [True, True, True, True]
+        model = ModelAnalyzer(hyperparams, force_create=force_create)
+        model.create_model()
+        avg_ratio = model.get_avg_ratio()
+        if avg_ratio > max_ratio:
+            max_f0 = f0
+            max_ratio = avg_ratio
+
+        ratios.append(avg_ratio)
+
+    with open('data/avg_ratio_f0.h5', 'wb') as f:
+        pickle.dump(ratios, f)
+
+    ratios = []
+    max_f1 = 0
+    max_ratio = 0.0
+    for f1 in range(20, 80, 5):
+        hyperparams = get_hyperparams()
+        hyperparams.extra_path = 'kmeans'
+        hyperparams.nkers = (max_k0, max_k1)
+        hyperparams.fc_sizes = (max_f0, f1)
+        force_create = [True, True, True, True]
+        model = ModelAnalyzer(hyperparams, force_create=force_create)
+        model.create_model()
+        avg_ratio = model.get_avg_ratio()
+        if avg_ratio > max_ratio:
+            max_f1 = f1
+            max_ratio = avg_ratio
+
+        ratios.append(avg_ratio)
+
+    with open('data/avg_ratio_f1.h5', 'wb') as f:
+        pickle.dump(ratios, f)
+
+    print(max_k0)
+    print(max_k1)
+    print(max_f0)
+    print(max_f1)
 
 
 def single_test():
@@ -130,5 +223,6 @@ def single_test():
 
 if __name__ == "__main__":
     single_test()
+    #search_test()
 
 

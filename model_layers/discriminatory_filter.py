@@ -32,7 +32,30 @@ class DiscriminatoryFilter(object):
         ph.disp('Outliers filtered')
 
 
+    def disp_data_info(self, samples):
+        variances = np.var(samples, axis=1)
+        means = np.mean(samples, axis=1)
+
+        avg_vars = np.mean(variances)
+        std_vars = np.std(variances)
+        avg_mean = np.mean(means)
+
+        ph.disp('Avg Var %.6f, Std Var %.6f, Avg Mean: %.6f' % (avg_vars,
+            std_vars, avg_mean))
+
+
+    def get_selected(self, samples, layer_index):
+        self.disp_data_info(samples)
+
+        if self.selection_count is None:
+            return samples
+        return samples[np.random.choice(samples.shape[0], self.selection_count,
+            replace=False), :]
+
+
     def get_sorted(self, samples, layer_index):
+        self.disp_data_info(samples)
+
         variances = np.var(samples, axis=1)
         per_sample_avg = np.mean(variances)
         per_sample_std = np.std(variances)

@@ -269,13 +269,13 @@ def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
         patch_vecs = p.map(transform_f, data_set_x)
 
     patch_vecs = np.array(patch_vecs)
-    print('----Patch vecs shape ' + str(patch_vecs.shape))
+    ph.disp('----Patch vecs shape ' + str(patch_vecs.shape))
     # This will be a 3D array
     # (# samples, # patches per sample, # flattened filter size dimension)
     patch_vecs_shape = patch_vecs.shape
     patch_vecs = patch_vecs.reshape(patch_vecs_shape[2], patch_vecs_shape[0] * patch_vecs_shape[1],
             patch_vecs_shape[3])
-    print('----Reshaped patch vecs shape ' + str(patch_vecs.shape))
+    ph.disp('----Reshaped patch vecs shape ' + str(patch_vecs.shape))
 
     # The not parralel version of the code above.
     #for i, data_x in enumerate(data_set_x):
@@ -395,8 +395,18 @@ def post_process_centroids(centroids):
     return centroids
 
 
+def pre_process_clusters(cluster_vecs):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        #cluster_vecs = preprocessing.scale(cluster_vecs)
+        cluster_vecs = preprocessing.normalize(cluster_vecs, norm='l2')
+    return cluster_vecs
+
+
 def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
-        max_std, can_recur, all_train_y, all_train_x, mappings, cur_layer, branch_depth = 0):
+        max_std, can_recur, all_train_y, all_train_x, mappings, cur_layer,
+        model, branch_depth = 0):
+    #layer_cluster_vecs = whiten(layer_cluster_vecs)
 
     #if cur_layer == 3:
         #plot_samples(layer_cluster_vecs, None, all_train_y)
@@ -406,7 +416,7 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
     ph.disp(pre_txt + 'At branch depth %i' % branch_depth)
     layer_centroids, labels = kmeans(layer_cluster_vecs, k, batch_size)
     # We will compute our own labels.
-    print('There are %i centroids %i layer cluster_vecs and %i y train samples'
+    ph.disp('There are %i centroids %i layer cluster_vecs and %i y train samples'
             % (len(layer_centroids), len(layer_cluster_vecs),
                 len(all_train_y)))
 
@@ -458,9 +468,12 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
             total_str += '     %i: %.1f ' % (label, 100.0 * (freq /
                 float(len(this_cluster))))
 
-        top_label, top_freq = label_freqs[0]
-        all_ratios.append(top_freq / float(len(this_cluster)))
-        accounted_for.append(top_label)
+        if len(label_freqs) > 0:
+            top_label, top_freq = label_freqs[0]
+            all_ratios.append(top_freq / float(len(this_cluster)))
+            accounted_for.append(top_label)
+        else:
+            all_ratios.append(0.0)
 
         this_cluster = np.array(this_cluster)
 
@@ -470,7 +483,7 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
         #ph.disp(pre_txt + '%i) C: %i, S: %.5f, M: %.5f' % (i, len(this_cluster),
         #    this_cluster_std, this_cluster_avg))
 
-        if (label_freqs[0][1] / float(len(this_cluster))) < 0.6:
+        if (len(label_freqs) > 0 and label_freqs[0][1] / float(len(this_cluster))) < 0.6:
             disp_color = ph.FAIL
         else:
             disp_color = ph.OKGREEN
@@ -485,7 +498,7 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
             sub_mapping = {}
             sub_layer_centroids = recur_apply_kmeans(this_cluster, 2,
                     batch_size, min_cluster_samples, max_std, can_recur,
-                    real_labels, all_train_x, sub_mapping, cur_layer, branch_depth + 1)
+                    real_labels, all_train_x, sub_mapping, cur_layer, model, branch_depth + 1)
             ph.linebreak()
 
             mappings[i] = sub_mapping
@@ -502,6 +515,7 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
     #accounted_for_std_ratio = accounted_for_std / opt_accounted_for_std
 
     ph.disp(pre_txt + 'Avg Ratio %.2f' % avg_ratio)
+    model.set_avg_ratio(avg_ratio)
     #ph.disp(pre_txt + 'Accounted For %.2f' % accounted_for_std_ratio)
     #ph.disp(pre_txt + 'Average Cluster Variance %.6f' % np.mean(all_vars))
     #ph.disp(pre_txt + 'Cluster Uniformity %.2f' % np.mean(
@@ -511,12 +525,11 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 
 
 def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        #layer_cluster_vecs = preprocessing.scale(layer_cluster_vecs)
-        layer_cluster_vecs = preprocessing.normalize(layer_cluster_vecs, norm='l2')
+    #layer_cluster_vecs = pre_process_clusters(layer_cluster_vecs)
+    #if cur_layer == 2:
+    #    plot_samples(layer_cluster_vecs, None, [0] * len(layer_cluster_vecs))
 
-    print('The cur layer is %i' % cur_layer)
+    ph.disp('The cur layer is %i' % cur_layer)
     max_std = 0.01
     min_samples_percentage = 0.01
 
@@ -536,7 +549,7 @@ def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
     mapping = {}
     all_centroids = recur_apply_kmeans(layer_cluster_vecs, k, batch_size,
             min_cluster_samples, max_std, can_recur, train_y,
-            model_wrapper.all_train_x, mapping, cur_layer)
+            model_wrapper.all_train_x, mapping, cur_layer, model_wrapper)
 
     model_wrapper.set_mapping(mapping)
 
@@ -552,31 +565,32 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     cluster_vecs = build_cluster_vecs(train_set_x, input_shape, stride,
             filter_shape, convolute)
 
+    cvs = cluster_vecs.shape
+    cluster_vecs = cluster_vecs.reshape(cvs[1], cvs[0] * cvs[2])
+    cluster_vecs = pre_process_clusters(cluster_vecs)
+
+
     if raw_save_loc != '':
         save_raw_image_patches(cluster_vecs, raw_save_loc)
 
     if convolute:
-        cvs = cluster_vecs.shape
-        cluster_vecs = cluster_vecs.reshape(cvs[1], cvs[0] * cvs[2])
-
         cluster_vecs = filter_params.get_sorted(cluster_vecs, layer_index)
 
         #cluster_vecs = np.array(list(filter_params.filter_outliers(cluster_vecs)))
 
-        cluster_vecs = cluster_vecs.reshape(cvs[0], -1, cvs[2])
+        #cluster_vecs = cluster_vecs.reshape(cvs[0], -1, cvs[2])
+        #cs = cluster_vecs.shape
+        #cluster_vecs = cluster_vecs.reshape(-1, cs[0] * cs[2])
+    else:
+        cluster_vecs = filter_params.get_selected(cluster_vecs, layer_index)
+        #cluster_vecs = filter_params.get_sorted(cluster_vecs, layer_index)
 
     cluster_vecs = np.array(cluster_vecs)
-
-    cs = cluster_vecs.shape
-    cluster_vecs = cluster_vecs.reshape(-1, cs[0] * cs[2])
 
     centroids = apply_kmeans(cluster_vecs, k, layer_index,
             model_wrapper, batch_size)
 
     ph.disp('Centroids now have shape %s' % str(centroids.shape))
-
-    if layer_index == 1:
-        raise ValueError()
 
     return centroids
 
