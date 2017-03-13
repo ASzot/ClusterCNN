@@ -16,6 +16,8 @@ import theano
 
 from scipy.cluster.vq import whiten
 
+import os
+from os import listdir
 import pickle
 import numpy as np
 import warnings
@@ -403,6 +405,13 @@ def pre_process_clusters(cluster_vecs):
     return cluster_vecs
 
 
+def post_sort_process_clusters(cluster_vecs):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        #cluster_vecs = preprocessing.scale(cluster_vecs)
+    return cluster_vecs
+
+
 def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
         max_std, can_recur, all_train_y, all_train_x, mappings, cur_layer,
         model, branch_depth = 0):
@@ -422,7 +431,7 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 
     layer_centroids = post_process_centroids(layer_centroids).tolist()
 
-    if cur_layer != 3:
+    if cur_layer != 2:
         return layer_centroids
 
     closest_anchor_vecs = get_closest_vectors(layer_centroids, list(zip(layer_cluster_vecs,
@@ -444,8 +453,10 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 
     final_centroids = []
     all_ratios = []
-    accounted_for = []
-    all_vars = []
+
+    num_folders = len(list(listdir('data/cluster_data/')))
+
+    os.makedirs('data/cluster_data/%i/' % (num_folders))
 
     for i in range(k):
         this_cluster = []
@@ -456,8 +467,6 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
                 this_cluster.append(layer_cluster_vecs[j])
                 real_labels.append(all_train_y[j])
                 real_samples.append(all_train_x[j])
-
-        all_vars.append(np.var(this_cluster))
 
         label_freqs = list(get_freq_percents(real_labels))
         label_freqs = sorted(label_freqs, key=lambda x: x[1], reverse=True)
@@ -470,25 +479,28 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 
         if len(label_freqs) > 0:
             top_label, top_freq = label_freqs[0]
-            all_ratios.append(top_freq / float(len(this_cluster)))
-            accounted_for.append(top_label)
+            ratio = top_freq / float(len(this_cluster))
+            all_ratios.append(ratio)
+
+            tmp_disp = int(ratio * 100.)
+            #with open('data/cluster_data/%i/%i_%i.h5' % (num_folders, i,
+            #    tmp_disp), 'wb') as f:
+            #    pickle.dump([this_cluster, real_labels, real_samples,
+            #        layer_centroids[i]], f)
         else:
             all_ratios.append(0.0)
 
         this_cluster = np.array(this_cluster)
 
-        this_cluster_std = np.var(this_cluster)
-        this_cluster_avg = np.mean(this_cluster)
-
-        #ph.disp(pre_txt + '%i) C: %i, S: %.5f, M: %.5f' % (i, len(this_cluster),
-        #    this_cluster_std, this_cluster_avg))
+        this_cluster_std = 0.0
+        if len(this_cluster) > 0:
+            this_cluster_std = np.var(this_cluster)
+            this_cluster_avg = np.mean(this_cluster)
 
         if (len(label_freqs) > 0 and label_freqs[0][1] / float(len(this_cluster))) < 0.6:
             disp_color = ph.FAIL
         else:
             disp_color = ph.OKGREEN
-
-        #ph.disp(pre_txt + total_str, disp_color)
 
         # Should divide the cluster even further?
         if can_recur and len(this_cluster) > min_cluster_samples and max_std < this_cluster_std:
@@ -509,22 +521,14 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 
     avg_ratio = np.mean(all_ratios)
 
-    accounted_for = list(set(accounted_for))
-    accounted_for_std = np.std(accounted_for)
-    #opt_accounted_for_std = np.std(range(10))
-    #accounted_for_std_ratio = accounted_for_std / opt_accounted_for_std
-
     ph.disp(pre_txt + 'Avg Ratio %.2f' % avg_ratio)
     model.set_avg_ratio(avg_ratio)
-    #ph.disp(pre_txt + 'Accounted For %.2f' % accounted_for_std_ratio)
-    #ph.disp(pre_txt + 'Average Cluster Variance %.6f' % np.mean(all_vars))
-    #ph.disp(pre_txt + 'Cluster Uniformity %.2f' % np.mean(
-
 
     return final_centroids
 
 
 def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
+    layer_cluster_vecs = post_sort_process_clusters(layer_cluster_vecs)
     #layer_cluster_vecs = pre_process_clusters(layer_cluster_vecs)
     #if cur_layer == 2:
     #    plot_samples(layer_cluster_vecs, None, [0] * len(layer_cluster_vecs))
@@ -568,7 +572,6 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     cvs = cluster_vecs.shape
     cluster_vecs = cluster_vecs.reshape(cvs[1], cvs[0] * cvs[2])
     cluster_vecs = pre_process_clusters(cluster_vecs)
-
 
     if raw_save_loc != '':
         save_raw_image_patches(cluster_vecs, raw_save_loc)

@@ -26,6 +26,40 @@ class ModelAnalyzer(ModelWrapper):
     what is going on in the network.
     """
 
+    def check_closest(self):
+        self.check_vecs(self.all_test_x, self.all_test_y)
+
+
+    def check_vecs(self, check_vecs, check_labels):
+        transformed_x = self.final_fc_out([check_vecs])[0]
+        train_y = convert_onehot_to_index(check_labels)
+
+        anchor_vecs = get_anchor_vectors(self)
+        centroids = anchor_vecs[-1]
+
+        closest_anchor_vecs = get_closest_vectors(centroids, zip(transformed_x, train_y))
+        pred_labels = [closest_anchor_vec[2] for closest_anchor_vec in closest_anchor_vecs]
+
+        all_freqs = []
+
+        for i in range(len(centroids)):
+            real_labels = []
+            for j, pred_label in enumerate(pred_labels):
+                if i == pred_label:
+                    real_labels.append(train_y[j])
+
+            label_freqs = list(get_freq_percents(real_labels))
+            label_freqs = sorted(label_freqs, key=lambda x: x[1], reverse=True)
+
+            total = sum([label_freq[1] for label_freq in label_freqs])
+            if len(label_freqs) > 0:
+                all_freqs.append(label_freqs[0][1] / float(total))
+            else:
+                all_freqs.append(0.0)
+
+        ph.disp('Avg Freq %.2f' % (np.mean(all_freqs)))
+
+
     def prune_neurons(self):
         ph.disp('Pruning network')
         # Get the anchor vectors of the network.

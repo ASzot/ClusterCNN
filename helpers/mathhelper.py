@@ -12,6 +12,7 @@ from functools import partial
 from multiprocessing import Pool
 from multiprocessing import cpu_count
 from scipy.spatial.distance import cosine as cosine_dist
+from scipy.spatial.distance import euclidean as euclidean_dist
 
 
 def get_freq_percents(labels):
@@ -26,10 +27,6 @@ def get_closest_anchor(xy, anchor_vecs):
     min_dist = 100000.0
     select_index = -1
     for i, anchor_vec in enumerate(anchor_vecs):
-        #x = x.reshape(-1, 1)
-        #anchor_vec = anchor_vec.reshape(-1, 1)
-        #dist = np.linalg.norm(x - anchor_vec)
-        #dist = euclidean_distances(x, anchor_vec)
         dist = cosine_dist(x, anchor_vec)
         if dist < min_dist:
             min_dist = dist

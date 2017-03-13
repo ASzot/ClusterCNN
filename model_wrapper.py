@@ -50,10 +50,11 @@ class ModelWrapper(object):
         :param force_create: If true nothing will be loaded from memory.
         Everything will be created even if it already exists.
         """
-        self.hyperparams        = hyperparams
-        self.force_create       = force_create
-        self.model              = None
-        self.accuracy           = None
+        self.hyperparams  = hyperparams
+        self.force_create = force_create
+        self.model        = None
+        self.accuracy     = None
+        self.output_count = None
 
 
     def set_avg_ratio(self, avg_ratio):
@@ -241,6 +242,14 @@ class ModelWrapper(object):
                 nb_epoch=5, verbose=1)
 
 
+    def __get_output_count(self):
+        if self.output_count is None:
+            anchor_vecs = get_anchor_vectors(self)
+            final_fc_anchor_vecs = anchor_vecs[-1]
+            self.output_count = len(final_fc_anchor_vecs)
+        return self.output_count
+
+
     def adaptive_test(self):
         test_x = self.all_test_x
         preds = self.model.predict(test_x)
@@ -258,7 +267,7 @@ class ModelWrapper(object):
             else:
                 pred_to_actual[pred][actual] = 1
 
-        total_fracs = [0.0] * self.output_count
+        total_fracs = [0.0] * self.__get_output_count()
 
         total_fracs_i = 0
         for pred in sorted(pred_to_actual):
@@ -374,14 +383,12 @@ class ModelWrapper(object):
         """
         Helper function to add a Dense layer
         """
-        print('Output dim ' + str(output_dim))
         dense_layer = Dense(output_dim)
 
         model.add(dense_layer)
 
         if not weights is None:
             bias = dense_layer.get_weights()[1]
-            print('Weights shape ' + str(weights.shape))
             dense_layer.set_weights([weights, bias])
 
 
