@@ -356,7 +356,6 @@ class ModelWrapper(object):
         model.add(activation_layer)
 
         max_pooling_out = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))
-
         model.add(max_pooling_out)
 
         if flatten:

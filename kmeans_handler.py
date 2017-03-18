@@ -3,6 +3,7 @@ import csv
 import numpy as np
 
 from helpers.printhelper import PrintHelper as ph
+from clustering import pre_process_clusters
 
 from clustering import load_or_create_centroids
 
@@ -110,7 +111,21 @@ class KMeansHandler(object):
                 ph.disp('Chaining from previous output.')
 
             # Transform the input to the output of the previous layer.
+            print('')
+            print('BEFORE')
+            print('Min ' + str(np.amin(self.prev_out)) + ', ', end='')
+            print('Max ' + str(np.amax(self.prev_out)) + ', ', end='')
+            print('Mean ' + str(np.mean(self.prev_out)) + ', ', end='')
+            print('STD ' +  str(np.std(self.prev_out )))
+
             layer_out = f_prev_out([self.prev_out])[0]
+
+            print('AFTER')
+            print('Min ' + str(np.amin(layer_out)) + ', ', end='')
+            print('Max ' + str(np.amax(layer_out)) + ', ', end='')
+            print('Mean ' + str(np.mean(layer_out)) + ', ', end='')
+            print('STD ' +  str(np.std(layer_out )))
+            print('')
 
         # Cache the output as it will need to be chained into the future layers.
         self.prev_out = layer_out

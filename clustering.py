@@ -96,8 +96,14 @@ def kmeans(input_data, k, batch_size, metric='sp'):
                 continue
             labels = skm.labels_
 
-            cluster_score = silhouette_score(input_data, labels, metric = 'cosine',
-                    sample_size=5000)
+            if np.amin(labels) == np.amax(labels):
+                cluster_score = 0.0
+                ph.disp('All samples belong to cluster ' +
+                        str(np.amin(labels)))
+            else:
+                cluster_score = silhouette_score(input_data, labels, metric = 'cosine',
+                        sample_size=5000)
+
 
             all_var = []
             for i in range(search_k):
@@ -106,8 +112,11 @@ def kmeans(input_data, k, batch_size, metric='sp'):
                     if labels[j] == i:
                         this_cluster.append(point)
 
-                this_cluster_var = np.var(this_cluster)
-                all_var.append(this_cluster_var)
+                if len(this_cluster) > 0.0:
+                    this_cluster_var = np.var(this_cluster)
+                    all_var.append(this_cluster_var)
+                else:
+                    all_var.append(0.0)
 
             avg_var = np.mean(all_var)
 
@@ -390,18 +399,45 @@ def build_cluster_vecs(train_set_x, input_shape, stride, filter_shape,
 
 
 def post_process_centroids(centroids):
+    print('')
+    print('CENTROID BEFORE PROC')
+    print('Min ' + str(np.amin(centroids)) + ', ', end='')
+    print('Max ' + str(np.amax(centroids)) + ', ', end='')
+    print('Mean ' + str(np.mean(centroids)) + ', ', end='')
+    print('STD ' +  str(np.std(centroids)))
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        centroids = preprocessing.scale(centroids)
+        if np.isnan(np.sum(centroids)):
+            raise ValueError('Is NaN')
+        #centroids = preprocessing.scale(centroids)
         centroids = preprocessing.normalize(centroids, norm='l2')
+
+    print('CENTROID AFTER PROC')
+    print('Min ' + str(np.amin(centroids)) + ', ', end='')
+    print('Max ' + str(np.amax(centroids)) + ', ', end='')
+    print('Mean ' + str(np.mean(centroids)) + ', ', end='')
+    print('STD ' +  str(np.std(centroids)))
+    print('')
+
     return centroids
 
 
-def pre_process_clusters(cluster_vecs):
+def pre_process_clusters(cluster_vecs, convolute):
+    orig_shape = None
+    if len(cluster_vecs.shape) > 2:
+        orig_shape = cluster_vecs.shape
+        cluster_vecs = cluster_vecs.reshape(-1, orig_shape[1] * orig_shape[2] * orig_shape[3])
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         #cluster_vecs = preprocessing.scale(cluster_vecs)
+        cluster_vecs = cluster_vecs - np.mean(cluster_vecs)
         cluster_vecs = preprocessing.normalize(cluster_vecs, norm='l2')
+
+    if orig_shape is not None:
+        cluster_vecs = cluster_vecs.reshape(*orig_shape)
+
     return cluster_vecs
 
 
@@ -415,6 +451,15 @@ def post_sort_process_clusters(cluster_vecs):
 def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
         max_std, can_recur, all_train_y, all_train_x, mappings, cur_layer,
         model, branch_depth = 0):
+
+    print('')
+    print('INCOMING CLUSTER DATA')
+    print('Min ' + str(np.amin( layer_cluster_vecs)) + ', ', end='')
+    print('Max ' + str(np.amax( layer_cluster_vecs)) + ', ', end='')
+    print('Mean ' + str(np.mean(layer_cluster_vecs)) + ', ', end='')
+    print('STD ' +  str(np.std( layer_cluster_vecs)))
+    print('')
+
     #layer_cluster_vecs = whiten(layer_cluster_vecs)
 
     #if cur_layer == 3:
@@ -571,7 +616,16 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
     cvs = cluster_vecs.shape
     cluster_vecs = cluster_vecs.reshape(cvs[1], cvs[0] * cvs[2])
-    cluster_vecs = pre_process_clusters(cluster_vecs)
+
+    print('')
+    print('PRE PROC CLUSTER DATA')
+    print('Min ' + str(np.amin( cluster_vecs)) + ', ', end='')
+    print('Max ' + str(np.amax( cluster_vecs)) + ', ', end='')
+    print('Mean ' + str(np.mean(cluster_vecs)) + ', ', end='')
+    print('STD ' +  str(np.std( cluster_vecs)))
+    print('')
+
+    cluster_vecs = pre_process_clusters(cluster_vecs, convolute)
 
     if raw_save_loc != '':
         save_raw_image_patches(cluster_vecs, raw_save_loc)

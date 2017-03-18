@@ -41,6 +41,8 @@ class ModelAnalyzer(ModelWrapper):
         pred_labels = [closest_anchor_vec[2] for closest_anchor_vec in closest_anchor_vecs]
 
         all_freqs = []
+        right = []
+        wrong = []
 
         for i in range(len(centroids)):
             real_labels = []
@@ -53,11 +55,13 @@ class ModelAnalyzer(ModelWrapper):
 
             total = sum([label_freq[1] for label_freq in label_freqs])
             if len(label_freqs) > 0:
-                all_freqs.append(label_freqs[0][1] / float(total))
-            else:
-                all_freqs.append(0.0)
+                right.append(label_freqs[0][1])
+                for label_freq in label_freqs[1:]:
+                    wrong.append(label_freq[1])
+                #all_freqs.append(label_freqs[0][1] / float(total))
 
-        ph.disp('Avg Freq %.2f' % (np.mean(all_freqs)))
+        accuracy = float(sum(right)) / float(sum(wrong) + sum(right))
+        ph.disp('Accuracy %.2f' % ((accuracy) * 100.0))
 
 
     def prune_neurons(self):

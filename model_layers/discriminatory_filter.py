@@ -45,7 +45,7 @@ class DiscriminatoryFilter(object):
 
 
     def get_selected(self, samples, layer_index):
-        self.disp_data_info(samples)
+        #self.disp_data_info(samples)
 
         if self.selection_count is None:
             return samples
@@ -54,7 +54,7 @@ class DiscriminatoryFilter(object):
 
 
     def get_sorted(self, samples, layer_index):
-        self.disp_data_info(samples)
+        #self.disp_data_info(samples)
 
         variances = np.var(samples, axis=1)
         per_sample_avg = np.mean(variances)
