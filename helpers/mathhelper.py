@@ -28,6 +28,7 @@ def get_closest_anchor(xy, anchor_vecs):
     select_index = -1
     for i, anchor_vec in enumerate(anchor_vecs):
         dist = cosine_dist(x, anchor_vec)
+        #dist = euclidean_dist(x, anchor_vec)
         if dist < min_dist:
             min_dist = dist
             select_index = i
@@ -48,6 +49,26 @@ def get_closest_vectors(ref_vecs, compare_vecs):
 
 def subtract_mean(cluster_vec):
     return cluster_vec - np.mean(cluster_vec)
+
+
+def distance_select(v0, v1):
+    return (cosine_dist(v0, v1[0]), v1[1])
+
+
+def get_nearest_neighbors(vecs, search_vec, N):
+    """
+    :param vecs: Array of tuples. First element of tuple is data point second
+    element is index of label
+    :param search_vec: Single data point
+    """
+    distance_from = partial(distance_select, search_vec)
+
+    with Pool(processes=cpu_count()) as p:
+        vector_distances = p.map(distance_from, vecs)
+
+    ordered_vector_distances = sorted(vector_distances, key=lambda x: x[0])
+
+    return ordered_vector_distances[0:N]
 
 
 def plot_samples(samples, anchor_vecs, labels, show_plt=None):

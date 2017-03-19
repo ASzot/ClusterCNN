@@ -9,6 +9,7 @@ import random
 
 from helpers.mathhelper import *
 from helpers.printhelper import PrintHelper as ph
+from clustering import pre_process_clusters
 
 from MulticoreTSNE import MulticoreTSNE as TSNE
 import sklearn.preprocessing as preprocessing
@@ -27,11 +28,13 @@ class ModelAnalyzer(ModelWrapper):
     """
 
     def check_closest(self):
-        self.check_vecs(self.all_test_x, self.all_test_y)
+        #self.check_vecs(self.all_test_x, self.all_test_y)
+        self.check_vecs(self.all_train_x, self.all_train_y)
 
 
     def check_vecs(self, check_vecs, check_labels):
         transformed_x = self.final_fc_out([check_vecs])[0]
+
         train_y = convert_onehot_to_index(check_labels)
 
         anchor_vecs = get_anchor_vectors(self)

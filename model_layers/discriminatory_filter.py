@@ -54,6 +54,8 @@ class DiscriminatoryFilter(object):
 
 
     def get_sorted(self, samples, layer_index):
+        if self.selection_count is None:
+            return np.array(samples)
         #self.disp_data_info(samples)
 
         variances = np.var(samples, axis=1)

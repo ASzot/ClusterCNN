@@ -1,5 +1,6 @@
 import os
 import csv
+from keras import backend as K
 import numpy as np
 
 from helpers.printhelper import PrintHelper as ph
@@ -24,7 +25,6 @@ class KMeansHandler(object):
         self.raw_out_loc = ''
         self.train_data = train_data
         self.filter_params = filter_params
-        self.prev_out = None
         self.model_wrapper = model_wrapper
 
 
@@ -62,7 +62,7 @@ class KMeansHandler(object):
         self.centroids_out_loc = centroids_out_loc
 
 
-    def handle_kmeans(self, layer_index, save_name, k, input_shape, output_shape, f_prev_out,
+    def handle_kmeans(self, layer_index, save_name, k, input_shape, output_shape,
                         convolute, assert_shape = None):
         """
         Perform k-means for this layer producing the anchor vectors for the layer.
@@ -74,7 +74,6 @@ class KMeansHandler(object):
         :param k: The number of anchor vectors to create. Used in the k-means algorithm.
         :param input_shape: The input dimensions of this layer.
         :param output_shape: The output dimensions of this layer.
-        :param f_prev_out: The Theano function that transforms the sample X the output of
         layer layer_index.
         :param convolute: Whether the convolution operator should be applied to the transformed
         samples. Use this for the convolution layers.
@@ -89,16 +88,16 @@ class KMeansHandler(object):
         print_str = ('-' * 10) + ('LAYER %i' % (layer_index)) + ('-' * 10)
         ph.disp(print_str, ph.OKGREEN)
 
-        if self.prev_out is None:
-            disp_use_count = len(self.train_data)
-        else:
-            disp_use_count = len(self.prev_out)
-
-        ph.disp('With %i samples avaliable' % disp_use_count)
-
         ph.disp('Input shape ' + str(input_shape), ph.FAIL)
         ph.disp('Assert shape' + str(assert_shape), ph.FAIL)
         ph.disp('Output shape ' + str(output_shape), ph.FAIL)
+
+        f_prev_out = None
+        wrapper_model = self.model_wrapper.model
+
+        if len(wrapper_model.layers) > 0:
+            f_prev_out = K.function([wrapper_model.layers[0].input],
+                    [wrapper_model.layers[len(wrapper_model.layers) - 1].output])
 
         # This is the first layer there is no need to transform any of the data.
         if f_prev_out is None:
@@ -111,24 +110,23 @@ class KMeansHandler(object):
                 ph.disp('Chaining from previous output.')
 
             # Transform the input to the output of the previous layer.
-            print('')
-            print('BEFORE')
-            print('Min ' + str(np.amin(self.prev_out)) + ', ', end='')
-            print('Max ' + str(np.amax(self.prev_out)) + ', ', end='')
-            print('Mean ' + str(np.mean(self.prev_out)) + ', ', end='')
-            print('STD ' +  str(np.std(self.prev_out )))
+            #print('')
+            #print('BEFORE')
+            #print('Min ' + str(np.amin(self.prev_out)) + ', ', end='')
+            #print('Max ' + str(np.amax(self.prev_out)) + ', ', end='')
+            #print('Mean ' + str(np.mean(self.prev_out)) + ', ', end='')
+            #print('STD ' +  str(np.std(self.prev_out )))
 
-            layer_out = f_prev_out([self.prev_out])[0]
+            layer_out = f_prev_out([self.train_data])[0]
 
-            print('AFTER')
-            print('Min ' + str(np.amin(layer_out)) + ', ', end='')
-            print('Max ' + str(np.amax(layer_out)) + ', ', end='')
-            print('Mean ' + str(np.mean(layer_out)) + ', ', end='')
-            print('STD ' +  str(np.std(layer_out )))
-            print('')
+            #layer_out = pre_process_clusters(layer_out, convolute)
 
-        # Cache the output as it will need to be chained into the future layers.
-        self.prev_out = layer_out
+            #print('AFTER')
+            #print('Min ' + str(np.amin(layer_out)) + ', ', end='')
+            #print('Max ' + str(np.amax(layer_out)) + ', ', end='')
+            #print('Mean ' + str(np.mean(layer_out)) + ', ', end='')
+            #print('STD ' +  str(np.std(layer_out )))
+            #print('')
 
         # Save the transformed input if the flag is set.
         if self.SHOULD_SAVE_RAW and self.force_create[layer_index]:

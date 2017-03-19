@@ -117,9 +117,7 @@ class ModelWrapper(object):
         kmeans_handler.set_filepaths(extra_path)
 
         # The Keras model builder.
-        model = Sequential()
-
-        f_conv_out = None
+        self.model = Sequential()
 
         self.__clear_layer_stats()
 
@@ -130,13 +128,13 @@ class ModelWrapper(object):
             output_shape = (nkerns[i], input_shape[0], filter_size[0], filter_size[1])
             assert_shape = (nkerns[i], input_shape[0] * filter_size[0] * filter_size[1])
             centroid_weights = kmeans_handler.handle_kmeans(i, 'c' + str(i), nkerns[i],
-                    input_shape, output_shape, f_conv_out, True, assert_shape = assert_shape)
+                    input_shape, output_shape, True, assert_shape = assert_shape)
 
             if should_set_weights[i]:
                 ph.disp('Setting layer weights.')
 
             is_last = (i == len(nkerns) - 1)
-            f_conv_out = self.__add_convlayer(model, nkerns[i], subsample, filter_size,
+            f_conv_out = self.__add_convlayer(self.model, nkerns[i], subsample, filter_size,
                             input_shape = input_shape, weights = centroid_weights,
                             flatten=is_last)
 
@@ -156,7 +154,7 @@ class ModelWrapper(object):
             output_shape = (np.array(input_shape).prod(), fc_sizes[i])
             assert_shape = (fc_sizes[i], np.array(input_shape).prod())
             centroid_weights = kmeans_handler.handle_kmeans(offset_index, 'f' + str(i), fc_sizes[i],
-                    input_shape, output_shape, f_fc_out, False, assert_shape = assert_shape)
+                    input_shape, output_shape, False, assert_shape = assert_shape)
 
             if should_set_weights[offset_index] and centroid_weights.shape[1] != fc_sizes[i]:
                 # Made automatic adjustment to the # of clusters.
@@ -169,25 +167,23 @@ class ModelWrapper(object):
                 ph.disp('Setting layer weights')
 
             if i == len(fc_sizes) - 1:
-                self.__add_dense_layer(model, fc_sizes[i], weights = centroid_weights)
+                self.__add_dense_layer(self.model, fc_sizes[i], weights = centroid_weights)
             else:
-                f_fc_out = self.__add_fclayer(model, fc_sizes[i], weights = centroid_weights)
+                f_fc_out = self.__add_fclayer(self.model, fc_sizes[i], weights = centroid_weights)
 
             input_shape = (fc_sizes[i],)
             ph.linebreak()
 
-        self.final_fc_out_data = kmeans_handler.prev_out
-        self.final_fc_out = K.function([model.layers[0].input], [model.layers[len(model.layers) - 2].output])
+        self.final_fc_out = K.function([self.model.layers[0].input],
+                [self.model.layers[len(self.model.layers) - 2].output])
 
-        model.add(Activation('softmax'))
+        self.model.add(Activation('softmax'))
 
         ph.disp('Compiling model')
 
         opt = SGD(lr=0.01)
-        model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+        self.model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
         ph.disp('Model is compiled')
-
-        self.model = model
 
 
     def set_mapping(self, mapping):
@@ -267,35 +263,21 @@ class ModelWrapper(object):
             else:
                 pred_to_actual[pred][actual] = 1
 
-        total_fracs = [0.0] * self.__get_output_count()
+        right = []
+        wrong = []
 
-        total_fracs_i = 0
         for pred in sorted(pred_to_actual):
             actual_freq = pred_to_actual[pred]
 
             actual_freq = sorted(actual_freq.items(),
                     key=operator.itemgetter(1), reverse=True)
 
-            total = 0
+            right.append(actual_freq[0][1])
+            wrong.extend([af[1] for af in actual_freq[1:]])
 
-            for actual, freq in actual_freq:
-                total += freq
+        pred_acc = float(sum(right)) / float(sum(right) + sum(wrong))
 
-            tmp_i = 0
-            #ph.disp('For prediction %i, %i' % (pred, int(total)))
-            for actual, freq in actual_freq:
-                pred_fraction = (freq / float(total))
-                if tmp_i == 0:
-                    total_fracs[total_fracs_i] = pred_fraction
-                    total_fracs_i += 1
-                #ph.disp('   %i: %.2f%%' % (actual, 100. * pred_fraction))
-                tmp_i += 1
-                if tmp_i >= 2:
-                    break
-
-        total_fracs_avg = np.mean(total_fracs)
-
-        ph.disp('Average %.2f' % (total_fracs_avg * 100.))
+        ph.disp('Prediction Accuracy %.2f' % (pred_acc * 100.))
 
 
     def train_model(self):
@@ -351,12 +333,11 @@ class ModelWrapper(object):
 
             conv_layer.set_weights([weights, bias])
 
-        activation_layer = Activation(activation_func)
-
-        model.add(activation_layer)
-
         max_pooling_out = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))
         model.add(max_pooling_out)
+
+        activation_layer = Activation(activation_func)
+        model.add(activation_layer)
 
         if flatten:
             tmp_f = K.function([conv_layer.input], [max_pooling_out.output])
@@ -371,7 +352,7 @@ class ModelWrapper(object):
             model.add(flatten_layer)
             output = flatten_layer.output
         else:
-            output = max_pooling_out.output
+            output = activation_layer.output
 
         # The function is the output of the conv / pooling layers.
         convout_f = K.function([conv_layer.input], [output])

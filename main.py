@@ -38,7 +38,8 @@ def get_hyperparams():
     # at layer i. For instance with the below numbers 30% of the max variance samples
     # will be selected at each layer of the network.
     #selection = [80000, 4000, 5000, None, None]
-    selection = [30000, 4000, 4000, None, None, None, None]
+    cluster_count = 10000
+    selection = [int(3 * cluster_count), int(0.4 * cluster_count), 5000, 5000, 5000, None, None]
 
     # The cluster count is another highly sensitive parameter.
     # The cluster count defines how many of the samples are passed through the
@@ -46,22 +47,24 @@ def get_hyperparams():
     # Note that I was able to obtain over 30% accuracy with 30,000 cluster count.
     # I am using 2,000 below because it is faster for testing.
 
+    should_set = [True] * 6
+
     return HyperParamData(
         input_shape = (1, 28, 28),
         subsample=(1,1),
         patches_subsample = (1,1),
-        filter_size=(3,3),
+        filter_size=(5,5),
         batch_size = 5,
         nkerns = (6,12,),
-        fc_sizes = (100, ),
+        fc_sizes = (120, 80, 40),
         n_epochs = 10,
         selection_counts = selection,
         activation_func = 'relu',
         extra_path = '',
-        should_set_weights = [True] * 6,
+        should_set_weights = should_set,
         should_eval = True,
         remaining = 100,
-        cluster_count = 10000)
+        cluster_count = cluster_count)
 
 
 def search_test():
@@ -170,7 +173,7 @@ def single_test():
     model.create_model()
     model.check_closest()
     #model.adaptive_train()
-    #model.adaptive_test()
+    model.adaptive_test()
     #model.eval_performance()
     #model.test_model()
     #model.train_model()
