@@ -369,6 +369,7 @@ class ModelWrapper(object):
 
         if not weights is None:
             bias = dense_layer.get_weights()[1]
+
             dense_layer.set_weights([weights, bias])
 
 

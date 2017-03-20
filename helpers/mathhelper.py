@@ -28,7 +28,6 @@ def get_closest_anchor(xy, anchor_vecs):
     select_index = -1
     for i, anchor_vec in enumerate(anchor_vecs):
         dist = cosine_dist(x, anchor_vec)
-        #dist = euclidean_dist(x, anchor_vec)
         if dist < min_dist:
             min_dist = dist
             select_index = i

@@ -34,10 +34,12 @@ class ModelAnalyzer(ModelWrapper):
 
     def check_vecs(self, check_vecs, check_labels):
         transformed_x = self.final_fc_out([check_vecs])[0]
+        transformed_x = pre_process_clusters(transformed_x, False)
 
         train_y = convert_onehot_to_index(check_labels)
 
         anchor_vecs = get_anchor_vectors(self)
+
         centroids = anchor_vecs[-1]
 
         closest_anchor_vecs = get_closest_vectors(centroids, zip(transformed_x, train_y))
@@ -49,9 +51,23 @@ class ModelAnalyzer(ModelWrapper):
 
         for i in range(len(centroids)):
             real_labels = []
+            transformed_cluster = []
+            orig_samples = []
+
             for j, pred_label in enumerate(pred_labels):
                 if i == pred_label:
                     real_labels.append(train_y[j])
+                    transformed_cluster.append(transformed_x[j])
+                    orig_samples.append(check_vecs[j])
+
+            orig_samples = np.array(orig_samples)
+            preds = self.model.predict_classes(orig_samples)
+            preds_med = np.median(preds)
+            #for pred in preds:
+            #    if pred != preds_med:
+                    #print('Has a prediction of %i' % pred)
+
+            raise ValueError()
 
             label_freqs = list(get_freq_percents(real_labels))
             label_freqs = sorted(label_freqs, key=lambda x: x[1], reverse=True)

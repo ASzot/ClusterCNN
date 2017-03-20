@@ -145,7 +145,10 @@ class KMeansHandler(object):
 
             if assert_shape is not None:
                 assert tmp_centroids.shape == assert_shape, 'Shape is %s' % str(tmp_centroids.shape)
-            return tmp_centroids.reshape(output_shape)
+
+            tmp_centroids = tmp_centroids.reshape(output_shape)
+
+            return tmp_centroids
         else:
             return None
 

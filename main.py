@@ -56,7 +56,7 @@ def get_hyperparams():
         filter_size=(5,5),
         batch_size = 5,
         nkerns = (6,12,),
-        fc_sizes = (120, 80, 40),
+        fc_sizes = (40,),
         n_epochs = 10,
         selection_counts = selection,
         activation_func = 'relu',
@@ -173,7 +173,7 @@ def single_test():
     model.create_model()
     model.check_closest()
     #model.adaptive_train()
-    model.adaptive_test()
+    #model.adaptive_test()
     #model.eval_performance()
     #model.test_model()
     #model.train_model()

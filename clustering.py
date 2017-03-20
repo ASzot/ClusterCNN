@@ -246,7 +246,6 @@ def get_image_patches(input_img, input_shape, stride, filter_shape):
     #        patch = np.array(patch)
     #        patch = patch.flatten()
     #        patches.append(patch)
-
     #        col_offset += stride[1]
 
     #    row_offset += stride[0]
@@ -413,7 +412,9 @@ def post_process_centroids(centroids):
         warnings.simplefilter("ignore")
         if np.isnan(np.sum(centroids)):
             raise ValueError('Is NaN')
+        centroids = centroids.astype(np.float64)
         centroids = preprocessing.scale(centroids)
+        #centroids = subtract_mean(centroids)
         centroids = preprocessing.normalize(centroids, norm='l2')
 
     print('CENTROID AFTER PROC')
@@ -480,6 +481,8 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 
     if cur_layer != (len(model.hyperparams.nkerns) + len(model.hyperparams.fc_sizes) - 1):
         return layer_centroids
+    #if cur_layer < 2:
+    #    return layer_centroids
 
     closest_anchor_vecs = get_closest_vectors(layer_centroids, list(zip(layer_cluster_vecs,
         all_train_y)))
@@ -538,7 +541,7 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
             disp_str += ('and %i incorrect' % (sum([af[1] for af in
                 label_freqs[1:]])))
 
-        ph.disp(disp_str)
+        #ph.disp(disp_str)
 
         this_cluster = np.array(this_cluster)
 
@@ -614,6 +617,7 @@ def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
 
     can_recur = (cur_layer == 4)
     can_recur = False
+    #can_recur = cur_layer > 1
 
     if can_recur:
         ph.disp('The max std per cluster:       %.4f' % max_std)
@@ -628,7 +632,7 @@ def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
 
     model_wrapper.set_mapping(mapping)
 
-    return np.array(all_centroids)
+    return np.array(all_centroids, np.float64)
 
 
 def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stride,
