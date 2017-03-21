@@ -60,15 +60,6 @@ class ModelAnalyzer(ModelWrapper):
                     transformed_cluster.append(transformed_x[j])
                     orig_samples.append(check_vecs[j])
 
-            orig_samples = np.array(orig_samples)
-            preds = self.model.predict_classes(orig_samples)
-            preds_med = np.median(preds)
-            #for pred in preds:
-            #    if pred != preds_med:
-                    #print('Has a prediction of %i' % pred)
-
-            raise ValueError()
-
             label_freqs = list(get_freq_percents(real_labels))
             label_freqs = sorted(label_freqs, key=lambda x: x[1], reverse=True)
 
