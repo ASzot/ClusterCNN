@@ -63,12 +63,12 @@ class ModelAnalyzer(ModelWrapper):
             label_freqs = list(get_freq_percents(real_labels))
             label_freqs = sorted(label_freqs, key=lambda x: x[1], reverse=True)
 
-            total = sum([label_freq[1] for label_freq in label_freqs])
             if len(label_freqs) > 0:
                 right.append(label_freqs[0][1])
                 for label_freq in label_freqs[1:]:
                     wrong.append(label_freq[1])
-                #all_freqs.append(label_freqs[0][1] / float(total))
+
+            print(sum([label_freq[1] for label_freq in label_freqs]))
 
         accuracy = float(sum(right)) / float(sum(wrong) + sum(right))
         ph.disp('Accuracy %.2f' % ((accuracy) * 100.0))

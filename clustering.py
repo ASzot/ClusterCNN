@@ -47,7 +47,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 
-def kmeans(input_data, k, batch_size, metric='sp'):
+def kmeans(input_data, k, batch_size, metric='sp', pre_txt=''):
     """
     The actual method to perform k-means.
 
@@ -58,7 +58,7 @@ def kmeans(input_data, k, batch_size, metric='sp'):
     :returns: The cluster centers.
     """
 
-    ph.disp('Performing %s kmeans on %i vectors %s' % (metric, len(input_data), input_data.shape), ph.OKBLUE)
+    ph.disp(pre_txt + 'Performing %s kmeans on %i vectors %s' % (metric, len(input_data), input_data.shape), ph.OKBLUE)
 
     # Check that there are actually enough samples to perform k-means
     if (k > len(input_data) or batch_size > len(input_data)):
@@ -122,7 +122,7 @@ def kmeans(input_data, k, batch_size, metric='sp'):
 
             avg_var = np.mean(all_var)
 
-            ph.disp('|   search k at %i got %.6f, %.4f' % (search_k, avg_var,
+            ph.disp(pre_txt + '|   search k at %i got %.6f, %.4f' % (search_k, avg_var,
                 cluster_score))
 
             if min_index == -1 or cluster_score > all_search_data[min_index][0]:
@@ -401,12 +401,12 @@ def build_cluster_vecs(train_set_x, input_shape, stride, filter_shape,
 
 def post_process_centroids(centroids):
     centroids = np.array(centroids)
-    print('')
-    print('CENTROID BEFORE PROC')
-    print('Min ' + str(np.amin(centroids)) + ', ', end='')
-    print('Max ' + str(np.amax(centroids)) + ', ', end='')
-    print('Mean ' + str(np.mean(centroids)) + ', ', end='')
-    print('STD ' +  str(np.std(centroids)))
+    #print('')
+    #print('CENTROID BEFORE PROC')
+    #print('Min ' + str(np.amin(centroids)) + ', ', end='')
+    #print('Max ' + str(np.amax(centroids)) + ', ', end='')
+    #print('Mean ' + str(np.mean(centroids)) + ', ', end='')
+    #print('STD ' +  str(np.std(centroids)))
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -417,12 +417,12 @@ def post_process_centroids(centroids):
         #centroids = subtract_mean(centroids)
         centroids = preprocessing.normalize(centroids, norm='l2')
 
-    print('CENTROID AFTER PROC')
-    print('Min ' + str(np.amin(centroids)) + ', ', end='')
-    print('Max ' + str(np.amax(centroids)) + ', ', end='')
-    print('Mean ' + str(np.mean(centroids)) + ', ', end='')
-    print('STD ' +  str(np.std(centroids)))
-    print('')
+    #print('CENTROID AFTER PROC')
+    #print('Min ' + str(np.amin(centroids)) + ', ', end='')
+    #print('Max ' + str(np.amax(centroids)) + ', ', end='')
+    #print('Mean ' + str(np.mean(centroids)) + ', ', end='')
+    #print('STD ' +  str(np.std(centroids)))
+    #print('')
 
     return centroids
 
@@ -453,15 +453,18 @@ def post_sort_process_clusters(cluster_vecs):
 
 def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
         max_std, can_recur, all_train_y, all_train_x, mappings, cur_layer,
-        model, branch_depth = 0):
+        model, right, wrong, branch_depth = 0):
 
-    print('')
-    print('INCOMING CLUSTER DATA')
-    print('Min ' + str(np.amin( layer_cluster_vecs)) + ', ', end='')
-    print('Max ' + str(np.amax( layer_cluster_vecs)) + ', ', end='')
-    print('Mean ' + str(np.mean(layer_cluster_vecs)) + ', ', end='')
-    print('STD ' +  str(np.std( layer_cluster_vecs)))
-    print('')
+    if branch_depth == 1:
+        can_recur = False
+
+    #print('')
+    #print('INCOMING CLUSTER DATA')
+    #print('Min ' + str(np.amin( layer_cluster_vecs)) + ', ', end='')
+    #print('Max ' + str(np.amax( layer_cluster_vecs)) + ', ', end='')
+    #print('Mean ' + str(np.mean(layer_cluster_vecs)) + ', ', end='')
+    #print('STD ' +  str(np.std( layer_cluster_vecs)))
+    #print('')
 
     #layer_cluster_vecs = whiten(layer_cluster_vecs)
 
@@ -470,12 +473,13 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
         #raise ValueError()
 
     pre_txt = '---' * branch_depth
+    ph.disp('')
     ph.disp(pre_txt + 'At branch depth %i' % branch_depth)
-    layer_centroids, labels = kmeans(layer_cluster_vecs, k, batch_size)
+    layer_centroids, labels = kmeans(layer_cluster_vecs, k, batch_size, pre_txt = pre_txt)
     # We will compute our own labels.
-    ph.disp('There are %i centroids %i layer cluster_vecs and %i y train samples'
-            % (len(layer_centroids), len(layer_cluster_vecs),
-                len(all_train_y)))
+    #ph.disp('There are %i centroids %i layer cluster_vecs and %i y train samples'
+    #        % (len(layer_centroids), len(layer_cluster_vecs),
+    #            len(all_train_y)))
 
     layer_centroids = post_process_centroids(layer_centroids).tolist()
 
@@ -487,10 +491,10 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
     closest_anchor_vecs = get_closest_vectors(layer_centroids, list(zip(layer_cluster_vecs,
         all_train_y)))
 
-    labels = [closest_anchor_vec[2] for closest_anchor_vec in
-            closest_anchor_vecs]
+    #labels = [closest_anchor_vec[2] for closest_anchor_vec in
+    #        closest_anchor_vecs]
 
-    labels = np.array(labels)
+    #labels = np.array(labels)
 
     overall_label_freqs = list(get_freq_percents(labels))
     overall_label_freqs = sorted(overall_label_freqs, key=lambda x: x[1], reverse=True)
@@ -501,9 +505,6 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 
     final_centroids = []
     all_ratios = []
-
-    right = []
-    wrong = []
 
     compute_nn = False
 
@@ -527,17 +528,15 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 
         label_freqs = list(get_freq_percents(real_labels))
         label_freqs = sorted(label_freqs, key=lambda x: x[1], reverse=True)
+        print(pre_txt + str(len(this_cluster)) + '_' + str(label_freqs))
 
         disp_str = ''
         if len(label_freqs) > 0:
-            right.append(label_freqs[0][1])
             disp_str += ('Out of %i: %i correct ' % (len(this_cluster), label_freqs[0][1]))
         else:
             disp_str += 'Cluster %i had no vectors associated with it' % i
 
         if len(label_freqs) > 1:
-            wrong.extend([af[1] for af in label_freqs[1:]])
-
             disp_str += ('and %i incorrect' % (sum([af[1] for af in
                 label_freqs[1:]])))
 
@@ -568,18 +567,25 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
         # Should divide the cluster even further?
         #if can_recur and len(this_cluster) > min_cluster_samples and max_std < this_cluster_std:
         if can_recur and len(this_cluster) > min_cluster_samples:
-            ph.linebreak()
+            #ph.linebreak()
             ph.disp(pre_txt + 'Branching cluster')
 
             sub_mapping = {}
-            sub_layer_centroids = recur_apply_kmeans(this_cluster, 2,
+            this_cluster = pre_process_clusters(this_cluster, False)
+            k = 10
+            sub_layer_centroids = recur_apply_kmeans(this_cluster, k,
                     batch_size, min_cluster_samples, max_std, can_recur,
-                    real_labels, all_train_x, sub_mapping, cur_layer, model, branch_depth + 1)
-            ph.linebreak()
+                    real_labels, all_train_x, sub_mapping, cur_layer, model,
+                    right, wrong, branch_depth + 1)
+            #ph.linebreak()
 
             mappings[i] = sub_mapping
             final_centroids.extend(sub_layer_centroids)
         else:
+            if len(label_freqs) > 0:
+                right.append(label_freqs[0][1])
+            if len(label_freqs) > 1:
+                wrong.extend([af[1] for af in label_freqs[1:]])
             mappings[i] = real_samples
             final_centroids.append(layer_centroids[i])
 
@@ -613,10 +619,10 @@ def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
     # The minimum # of samples per cluster.
     # Note that this rule always has precedence over the max std rule.
     min_cluster_samples = int(len(layer_cluster_vecs) * min_samples_percentage)
-    min_cluster_samples = 200
+    min_cluster_samples = 1000
 
-    can_recur = (cur_layer == 4)
-    can_recur = False
+    can_recur = (cur_layer == 2)
+    #can_recur = False
     #can_recur = cur_layer > 1
 
     if can_recur:
@@ -626,9 +632,12 @@ def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
     train_y = convert_onehot_to_index(model_wrapper.all_train_y)
 
     mapping = {}
+    right = []
+    wrong = []
     all_centroids = recur_apply_kmeans(layer_cluster_vecs, k, batch_size,
             min_cluster_samples, max_std, can_recur, train_y,
-            model_wrapper.all_train_x, mapping, cur_layer, model_wrapper)
+            model_wrapper.all_train_x, mapping, cur_layer, model_wrapper,
+            right, wrong)
 
     model_wrapper.set_mapping(mapping)
 
@@ -656,6 +665,14 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     print('')
 
     cluster_vecs = pre_process_clusters(cluster_vecs, convolute)
+
+    print('')
+    print('POST PROC CLUSTER DATA')
+    print('Min ' + str(np.amin( cluster_vecs)) + ', ', end='')
+    print('Max ' + str(np.amax( cluster_vecs)) + ', ', end='')
+    print('Mean ' + str(np.mean(cluster_vecs)) + ', ', end='')
+    print('STD ' +  str(np.std( cluster_vecs)))
+    print('')
 
     if raw_save_loc != '':
         save_raw_image_patches(cluster_vecs, raw_save_loc)

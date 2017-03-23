@@ -331,6 +331,9 @@ class ModelWrapper(object):
         if not weights is None:
             bias = conv_layer.get_weights()[1]
 
+            print('WEIGHT SHAPE')
+            print(weights.shape)
+
             conv_layer.set_weights([weights, bias])
 
         max_pooling_out = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))
@@ -339,17 +342,16 @@ class ModelWrapper(object):
         activation_layer = Activation(activation_func)
         model.add(activation_layer)
 
+        ph.disp('Conv Output Shape ' + str(conv_layer.output_shape))
+        ph.disp('Max Pooling Output Shape ' + str(max_pooling_out.output_shape))
+
         if flatten:
-            tmp_f = K.function([conv_layer.input], [max_pooling_out.output])
-            if weights is not None:
-                weights_shape = weights.shape
-                zeroes = np.zeros(weights_shape)
-                dummy_out = tmp_f([zeroes])
-                ph.disp('Preflattened shape ' + str(np.array(dummy_out[0]).shape))
 
             ph.disp('Flattening output')
             flatten_layer = Flatten()
             model.add(flatten_layer)
+
+            print('Flatten Shape ' + str(flatten_layer.output_shape))
             output = flatten_layer.output
         else:
             output = activation_layer.output
