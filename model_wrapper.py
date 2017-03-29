@@ -8,6 +8,7 @@ from keras import backend as K
 from keras.models import load_model
 from keras.optimizers import SGD
 from keras.utils import np_utils
+from keras.datasets import cifar10
 
 from helpers.printhelper import PrintHelper as ph
 from helpers.printhelper import print_cm
@@ -55,6 +56,11 @@ class ModelWrapper(object):
         self.model        = None
         self.accuracy     = None
         self.output_count = None
+        self.predictor    = None
+
+
+    def set_predictor(self, predictor):
+        self.predictor = predictor
 
 
     def set_avg_ratio(self, avg_ratio):
@@ -177,7 +183,7 @@ class ModelWrapper(object):
         self.final_fc_out = K.function([self.model.layers[0].input],
                 [self.model.layers[len(self.model.layers) - 2].output])
 
-        self.model.add(Activation('softmax'))
+        #self.model.add(Activation('softmax'))
 
         ph.disp('Compiling model')
 
@@ -331,10 +337,9 @@ class ModelWrapper(object):
         if not weights is None:
             bias = conv_layer.get_weights()[1]
 
-            print('WEIGHT SHAPE')
-            print(weights.shape)
-
             conv_layer.set_weights([weights, bias])
+        else:
+            ph.disp('Setting random weights')
 
         max_pooling_out = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))
         model.add(max_pooling_out)
@@ -342,11 +347,12 @@ class ModelWrapper(object):
         activation_layer = Activation(activation_func)
         model.add(activation_layer)
 
+        ph.disp('Conv input shape ' + str(conv_layer.input_shape))
+        ph.disp('Conv weights shape ' + str(conv_layer.get_weights()[0].shape))
         ph.disp('Conv Output Shape ' + str(conv_layer.output_shape))
         ph.disp('Max Pooling Output Shape ' + str(max_pooling_out.output_shape))
 
         if flatten:
-
             ph.disp('Flattening output')
             flatten_layer = Flatten()
             model.add(flatten_layer)
@@ -369,10 +375,16 @@ class ModelWrapper(object):
 
         model.add(dense_layer)
 
+        ph.disp('FC Input Shape ' + str(dense_layer.input_shape))
+        ph.disp('FC transformation ' + str(dense_layer.get_weights()[0].shape))
+        ph.disp('FC Output Shape ' + str(dense_layer.output_shape))
+
         if not weights is None:
             bias = dense_layer.get_weights()[1]
 
             dense_layer.set_weights([weights, bias])
+        else:
+            ph.disp('Setting random weights')
 
 
     def __add_fclayer(self, model, output_dim, weights=None, activation_func='relu'):
@@ -384,6 +396,9 @@ class ModelWrapper(object):
         dense_layer = Dense(output_dim)
 
         model.add(dense_layer)
+
+        ph.disp('FC Input Shape ' + str(dense_layer.input_shape))
+        ph.disp('FC Output Shape ' + str(dense_layer.output_shape))
 
         if not weights is None:
             bias = dense_layer.get_weights()[1]
@@ -633,12 +648,14 @@ class ModelWrapper(object):
         """
         Get the data and select the correct amount of it.
         """
-        dataset = datasets.fetch_mldata('MNIST Original')
-        data = dataset.data.reshape((dataset.data.shape[0], 28, 28))
-        data = data[:, np.newaxis, :, :]
+        (train_data, train_labels), (test_data, test_labels) = cifar10.load_data()
+        #dataset = datasets.fetch_mldata('MNIST Original')
 
-        # Seed the random state in the data split.
-        (train_data, test_data, train_labels, test_labels) = train_test_split(data / 255.0, dataset.target.astype('int'), test_size=test_size, random_state=42)
+        #data = dataset.data.reshape((dataset.data.shape[0], 28, 28))
+        #data = data[:, np.newaxis, :, :]
+
+        ## Seed the random state in the data split.
+        #(train_data, test_data, train_labels, test_labels) = train_test_split(data / 255.0, dataset.target.astype('int'), test_size=test_size, random_state=42)
 
         train_labels = np_utils.to_categorical(train_labels, 10)
         test_labels = np_utils.to_categorical(test_labels, 10)

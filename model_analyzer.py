@@ -42,8 +42,9 @@ class ModelAnalyzer(ModelWrapper):
 
         centroids = anchor_vecs[-1]
 
-        closest_anchor_vecs = get_closest_vectors(centroids, zip(transformed_x, train_y))
-        pred_labels = [closest_anchor_vec[2] for closest_anchor_vec in closest_anchor_vecs]
+        #closest_anchor_vecs = get_closest_vectors(centroids, zip(transformed_x, train_y))
+        #pred_labels = [closest_anchor_vec[2] for closest_anchor_vec in closest_anchor_vecs]
+        pred_labels = self.predictor.predict(transformed_x)
 
         all_freqs = []
         right = []
@@ -68,7 +69,9 @@ class ModelAnalyzer(ModelWrapper):
                 for label_freq in label_freqs[1:]:
                     wrong.append(label_freq[1])
 
-            print(sum([label_freq[1] for label_freq in label_freqs]))
+            belong_total = (sum([label_freq[1] for label_freq in label_freqs]))
+            #if (belong_total == 0):
+            #    print('Zero vectors belong to this cluster')
 
         accuracy = float(sum(right)) / float(sum(wrong) + sum(right))
         ph.disp('Accuracy %.2f' % ((accuracy) * 100.0))

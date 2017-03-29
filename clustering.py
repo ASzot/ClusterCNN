@@ -3,6 +3,7 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.decomposition import PCA
 from sklearn.metrics.pairwise import cosine_distances
 from sklearn.metrics.pairwise import cosine_similarity
+from scipy.spatial.distance import cosine as cosine_dist
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.metrics import pairwise
 import sklearn.preprocessing as preprocessing
@@ -87,11 +88,13 @@ def kmeans(input_data, k, batch_size, metric='sp', pre_txt=''):
         min_index = -1
         min_cluster_centers = []
         min_labels = []
+        min_predictor = None
 
         cur_index = 0
         for search_k in [k]:
             search_k = int(search_k)
             try:
+                input_data = preprocessing.normalize(input_data)
                 skm = SphericalKMeans(n_clusters=search_k, n_jobs=-1)
                 skm.fit(input_data)
             except:
@@ -105,7 +108,6 @@ def kmeans(input_data, k, batch_size, metric='sp', pre_txt=''):
             else:
                 cluster_score = silhouette_score(input_data, labels, metric = 'cosine',
                         sample_size=5000)
-
 
             all_var = []
             for i in range(search_k):
@@ -129,15 +131,13 @@ def kmeans(input_data, k, batch_size, metric='sp', pre_txt=''):
                 min_index = cur_index
                 min_cluster_centers = skm.cluster_centers_
                 min_labels = labels
+                min_predictor = skm
 
             all_search_data.append((cluster_score, avg_var))
 
             cur_index += 1
 
-        #with open('data/' + str(uuid.uuid4()) + '.dat') as f:
-        #    pickle.dump(all_search_data, f)
-
-        return min_cluster_centers, min_labels
+        return min_cluster_centers, min_labels, skm
 
     elif metric == 'vmfmh':
         # VonMisesFisherMixtureHard
@@ -218,8 +218,6 @@ def get_image_patches(input_img, input_shape, stride, filter_shape):
         patches = np.lib.stride_tricks.as_strided(img_channel, shape=shape, strides=use_strides)
         all_depth_patches.append(patches)
 
-    #all_depth_patches = np.array(all_depth_patches).flatten()
-
     contiguous_patches = np.ascontiguousarray(all_depth_patches)
     patches_shape = contiguous_patches.shape
 
@@ -227,31 +225,6 @@ def get_image_patches(input_img, input_shape, stride, filter_shape):
             patches_shape[0], patches_shape[3] * patches_shape[4])
 
     return contiguous_patches
-
-
-    # Not optimized but clearer code to get image subpatches.
-    ## Get the patch.
-    #row_offset = 0
-    #col_offset = 0
-    #patches = []
-
-    ## Remember the receptive field acts across the entire depth parameter.
-    #while row_offset <= input_shape[1] - filter_shape[0]:
-    #    while col_offset <= input_shape[2] - filter_shape[1]:
-    #        patch = []
-    #        for filter_mat in input_img:
-    #            patch.append(filter_mat[row_offset:row_offset+filter_shape[0],
-    #                col_offset:col_offset+filter_shape[1]])
-
-    #        patch = np.array(patch)
-    #        patch = patch.flatten()
-    #        patches.append(patch)
-    #        col_offset += stride[1]
-
-    #    row_offset += stride[0]
-    #    col_offset = 0
-
-    #return patches
 
 
 def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
@@ -288,22 +261,6 @@ def build_patch_vecs(data_set_x, input_shape, stride, filter_shape):
     patch_vecs = patch_vecs.reshape(patch_vecs_shape[2], patch_vecs_shape[0] * patch_vecs_shape[1],
             patch_vecs_shape[3])
     ph.disp('----Reshaped patch vecs shape ' + str(patch_vecs.shape))
-
-    # The not parralel version of the code above.
-    #for i, data_x in enumerate(data_set_x):
-    #    if i % display_percent == 0:
-    #        ph.disp('----%.2f%%' % ((float(i) / float(len(data_set_x))) * 100.))
-
-    #    patches = get_image_patches(data_x, input_shape, stride, filter_shape)
-
-    #    if i == 0:
-    #        ph.disp('Got %i patches for each vector' % (len(patches)), ph.WARNING)
-    #        patch_np = np.array(patches[0])
-    #        ph.disp('Patch dimension is %s' % (patch_np.shape))
-    #    # Add the patches to the culminative list of patches.
-    #    patch_vecs.extend(patches)
-
-    #print(np.array(patch_vecs).shape)
 
     return patch_vecs
 
@@ -475,7 +432,8 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
     pre_txt = '---' * branch_depth
     ph.disp('')
     ph.disp(pre_txt + 'At branch depth %i' % branch_depth)
-    layer_centroids, labels = kmeans(layer_cluster_vecs, k, batch_size, pre_txt = pre_txt)
+    layer_centroids, labels, predictor = kmeans(layer_cluster_vecs, k, batch_size, pre_txt = pre_txt)
+    model.set_predictor(predictor)
     # We will compute our own labels.
     #ph.disp('There are %i centroids %i layer cluster_vecs and %i y train samples'
     #        % (len(layer_centroids), len(layer_cluster_vecs),
@@ -488,20 +446,22 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
     #if cur_layer < 2:
     #    return layer_centroids
 
-    closest_anchor_vecs = get_closest_vectors(layer_centroids, list(zip(layer_cluster_vecs,
-        all_train_y)))
+    #closest_anchor_vecs = get_closest_vectors(layer_centroids, list(zip(layer_cluster_vecs,
+    #    all_train_y)))
 
     #labels = [closest_anchor_vec[2] for closest_anchor_vec in
     #        closest_anchor_vecs]
 
-    #labels = np.array(labels)
+    #adjusted_labels = predictor.predict(layer_cluster_vecs)
 
-    overall_label_freqs = list(get_freq_percents(labels))
-    overall_label_freqs = sorted(overall_label_freqs, key=lambda x: x[1], reverse=True)
+    labels = np.array(labels)
 
-    freq_margin = int(len(layer_cluster_vecs) * 0.75)
-    if overall_label_freqs[0][1] > freq_margin:
-        can_recur = False
+    #overall_label_freqs = list(get_freq_percents(labels))
+    #overall_label_freqs = sorted(overall_label_freqs, key=lambda x: x[1], reverse=True)
+
+    #freq_margin = int(len(layer_cluster_vecs) * 0.75)
+    #if overall_label_freqs[0][1] > freq_margin:
+    #    can_recur = False
 
     final_centroids = []
     all_ratios = []
@@ -528,7 +488,10 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
 
         label_freqs = list(get_freq_percents(real_labels))
         label_freqs = sorted(label_freqs, key=lambda x: x[1], reverse=True)
-        print(pre_txt + str(len(this_cluster)) + '_' + str(label_freqs))
+
+        this_cluster_var = np.var(this_cluster)
+        print(pre_txt + str(len(this_cluster)) + '_' + ('%.9f' %
+            this_cluster_var) + '_' + str(label_freqs))
 
         disp_str = ''
         if len(label_freqs) > 0:
@@ -619,10 +582,10 @@ def apply_kmeans(layer_cluster_vecs, k, cur_layer, model_wrapper, batch_size):
     # The minimum # of samples per cluster.
     # Note that this rule always has precedence over the max std rule.
     min_cluster_samples = int(len(layer_cluster_vecs) * min_samples_percentage)
-    min_cluster_samples = 1000
+    min_cluster_samples = len(layer_cluster_vecs) / k
 
     can_recur = (cur_layer == 2)
-    #can_recur = False
+    can_recur = False
     #can_recur = cur_layer > 1
 
     if can_recur:
@@ -691,6 +654,7 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
 
     cluster_vecs = np.array(cluster_vecs)
 
+    print(cluster_vecs.shape)
     centroids = apply_kmeans(cluster_vecs, k, layer_index,
             model_wrapper, batch_size)
 

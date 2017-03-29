@@ -24,11 +24,21 @@ def get_freq_percents(labels):
 def get_closest_anchor(xy, anchor_vecs):
     x, y = xy
     # Get the closest anchor vector for this sample.
-    min_dist = 100000.0
+    min_dist = -1
     select_index = -1
+
     for i, anchor_vec in enumerate(anchor_vecs):
-        dist = cosine_dist(x, anchor_vec)
-        if dist < min_dist:
+        #angle = angle_between(x, anchor_vec)
+        #dist = cosine_dist(x, anchor_vec)
+        #dist = np.absolute(angle)
+        # Follow the formula that the euclidean distance is just.
+        #||a - b||^2 = ||a||^2 + ||b||^2 -2 <a, b>
+        dist = 2.0 - (2.0 * np.dot(x, anchor_vec))
+        if np.absolute(dist - min_dist) < 0.01:
+            # Cannot be resolved.
+            select_index = None
+            break
+        if min_dist == -1 or dist < min_dist:
             min_dist = dist
             select_index = i
 
