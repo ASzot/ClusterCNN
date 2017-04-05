@@ -33,6 +33,7 @@ class ModelAnalyzer(ModelWrapper):
 
 
     def check_vecs(self, check_vecs, check_labels):
+        ph.disp('Checking %i vectors' % len(check_vecs))
         transformed_x = self.final_fc_out([check_vecs])[0]
         transformed_x = pre_process_clusters(transformed_x, False)
 
@@ -42,9 +43,12 @@ class ModelAnalyzer(ModelWrapper):
 
         centroids = anchor_vecs[-1]
 
-        #closest_anchor_vecs = get_closest_vectors(centroids, zip(transformed_x, train_y))
-        #pred_labels = [closest_anchor_vec[2] for closest_anchor_vec in closest_anchor_vecs]
-        pred_labels = self.predictor.predict(transformed_x)
+        self.predictor = None
+        if self.predictor is not None:
+            pred_labels = self.predictor.predict(transformed_x)
+        else:
+            closest_anchor_vecs = get_closest_vectors(centroids, zip(transformed_x, train_y))
+            pred_labels = [closest_anchor_vec[2] for closest_anchor_vec in closest_anchor_vecs]
 
         all_freqs = []
         right = []

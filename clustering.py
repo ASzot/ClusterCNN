@@ -326,9 +326,7 @@ def plot_silhouette_scores(cluster_score, samples_scores, should_plot=False):
 def save_raw_image_patches(cluster_vecs, raw_save_loc):
     ph.disp('Saving image patches')
     with open(raw_save_loc, 'wb') as f:
-        csvwriter = csv.writer(f)
-        for cluster_vec in cluster_vecs:
-            csvwriter.writerow(cluster_vec)
+        pickle.dump(cluster_vecs, f)
 
 
 def build_cluster_vecs(train_set_x, input_shape, stride, filter_shape,
@@ -370,8 +368,8 @@ def post_process_centroids(centroids):
         if np.isnan(np.sum(centroids)):
             raise ValueError('Is NaN')
         centroids = centroids.astype(np.float64)
-        centroids = preprocessing.scale(centroids)
-        #centroids = subtract_mean(centroids)
+        #centroids = preprocessing.scale(centroids)
+        centroids = subtract_mean(centroids)
         centroids = preprocessing.normalize(centroids, norm='l2')
 
     #print('CENTROID AFTER PROC')
@@ -613,48 +611,56 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     The entry point for creating the centroids for input samples for a given layer.
     """
 
-    cluster_vecs = build_cluster_vecs(train_set_x, input_shape, stride,
-            filter_shape, convolute)
+    raw_save_loc = 'data/tmp.h5'
+    raw_save_loc = ''
+    try:
+        raise IOError()
+        with open(raw_save_loc, 'rb') as f:
+            cluster_vecs = pickle.load(f)
+    except IOError:
+        cluster_vecs = build_cluster_vecs(train_set_x, input_shape, stride,
+                filter_shape, convolute)
 
-    cvs = cluster_vecs.shape
-    cluster_vecs = cluster_vecs.reshape(cvs[1], cvs[0] * cvs[2])
+        cvs = cluster_vecs.shape
+        cluster_vecs = cluster_vecs.reshape(cvs[1], cvs[0] * cvs[2])
 
-    print('')
-    print('PRE PROC CLUSTER DATA')
-    print('Min ' + str(np.amin( cluster_vecs)) + ', ', end='')
-    print('Max ' + str(np.amax( cluster_vecs)) + ', ', end='')
-    print('Mean ' + str(np.mean(cluster_vecs)) + ', ', end='')
-    print('STD ' +  str(np.std( cluster_vecs)))
-    print('')
+        print('')
+        print('PRE PROC CLUSTER DATA')
+        print('Min ' + str(np.amin( cluster_vecs)) + ', ', end='')
+        print('Max ' + str(np.amax( cluster_vecs)) + ', ', end='')
+        print('Mean ' + str(np.mean(cluster_vecs)) + ', ', end='')
+        print('STD ' +  str(np.std( cluster_vecs)))
+        print('')
 
-    cluster_vecs = pre_process_clusters(cluster_vecs, convolute)
+        cluster_vecs = pre_process_clusters(cluster_vecs, convolute)
 
-    print('')
-    print('POST PROC CLUSTER DATA')
-    print('Min ' + str(np.amin( cluster_vecs)) + ', ', end='')
-    print('Max ' + str(np.amax( cluster_vecs)) + ', ', end='')
-    print('Mean ' + str(np.mean(cluster_vecs)) + ', ', end='')
-    print('STD ' +  str(np.std( cluster_vecs)))
-    print('')
+        print('')
+        print('POST PROC CLUSTER DATA')
+        print('Min ' + str(np.amin( cluster_vecs)) + ', ', end='')
+        print('Max ' + str(np.amax( cluster_vecs)) + ', ', end='')
+        print('Mean ' + str(np.mean(cluster_vecs)) + ', ', end='')
+        print('STD ' +  str(np.std( cluster_vecs)))
+        print('')
 
-    if raw_save_loc != '':
-        save_raw_image_patches(cluster_vecs, raw_save_loc)
+        if convolute:
+            cluster_vecs = filter_params.get_sorted(cluster_vecs, layer_index)
+            #cluster_vecs = np.array(list(filter_params.filter_outliers(cluster_vecs)))
+            #cluster_vecs = cluster_vecs.reshape(cvs[0], -1, cvs[2])
+            #cs = cluster_vecs.shape
+            #cluster_vecs = cluster_vecs.reshape(-1, cs[0] * cs[2])
+        else:
+            cluster_vecs = filter_params.get_selected(cluster_vecs, layer_index)
+            #cluster_vecs = filter_params.get_sorted(cluster_vecs, layer_index)
+
+        if raw_save_loc != '':
+            save_raw_image_patches(cluster_vecs, raw_save_loc)
+            raise ValueError('Saved')
 
     if convolute:
-        cluster_vecs = filter_params.get_sorted(cluster_vecs, layer_index)
-
-        #cluster_vecs = np.array(list(filter_params.filter_outliers(cluster_vecs)))
-
-        #cluster_vecs = cluster_vecs.reshape(cvs[0], -1, cvs[2])
-        #cs = cluster_vecs.shape
-        #cluster_vecs = cluster_vecs.reshape(-1, cs[0] * cs[2])
-    else:
-        cluster_vecs = filter_params.get_selected(cluster_vecs, layer_index)
-        #cluster_vecs = filter_params.get_sorted(cluster_vecs, layer_index)
+        cluster_vecs = filter_params.get_top(cluster_vecs, layer_index)
 
     cluster_vecs = np.array(cluster_vecs)
 
-    print(cluster_vecs.shape)
     centroids = apply_kmeans(cluster_vecs, k, layer_index,
             model_wrapper, batch_size)
 

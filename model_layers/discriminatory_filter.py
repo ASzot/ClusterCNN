@@ -59,6 +59,24 @@ class DiscriminatoryFilter(object):
         return samples[np.random.choice(samples.shape[0], self.selection_count,
             replace=False), :]
 
+    def get_top(self, samples, layer_index):
+        if len(samples) > self.selection_count:
+            samples = samples[0:self.selection_count]
+            ph.disp('-----Selected %i samples' % (self.selection_count))
+        else:
+            ph.disp('-----Left with %i samples' % (len(samples)))
+
+        variances = np.var(samples, axis=1)
+        variances = np.array(variances, np.float32)
+        per_sample_avg = np.mean(variances)
+        per_sample_std = np.std(variances)
+        print('The min variance is ', np.amin(variances))
+        print('The max variance is ', np.amax(variances))
+        print('per sample std ', per_sample_std)
+        print('per sample avg ', per_sample_avg)
+
+        return samples
+
 
     def get_sorted(self, samples, layer_index):
         if self.selection_count is None:
@@ -90,20 +108,6 @@ class DiscriminatoryFilter(object):
         sample_variances = sorted(sample_variances, key = lambda x: -x[1])
         ph.disp('-----Sort finished')
         samples = [sample_variance[0] for sample_variance in sample_variances]
-        if len(samples) > self.selection_count:
-            samples = samples[0:self.selection_count]
-            ph.disp('-----Selected %i samples' % (self.selection_count))
-        else:
-            ph.disp('-----Left with %i samples' % (len(samples)))
-
-        variances = np.var(samples, axis=1)
-        variances = np.array(variances, np.float32)
-        per_sample_avg = np.mean(variances)
-        per_sample_std = np.std(variances)
-        print('The min variance is ', np.amin(variances))
-        print('The max variance is ', np.amax(variances))
-        print('per sample std ', per_sample_std)
-        print('per sample avg ', per_sample_avg)
 
         #if self.selection_count is not None:
         #    samples = np.array(samples)

@@ -133,8 +133,11 @@ class ModelWrapper(object):
 
             output_shape = (nkerns[i], input_shape[0], filter_size[0], filter_size[1])
             assert_shape = (nkerns[i], input_shape[0] * filter_size[0] * filter_size[1])
+
+            add_max_pool = (i % 2 == 1)
             centroid_weights = kmeans_handler.handle_kmeans(i, 'c' + str(i), nkerns[i],
-                    input_shape, output_shape, True, assert_shape = assert_shape)
+                    input_shape, output_shape, True, assert_shape =
+                    assert_shape)
 
             if should_set_weights[i]:
                 ph.disp('Setting layer weights.')
@@ -142,7 +145,7 @@ class ModelWrapper(object):
             is_last = (i == len(nkerns) - 1)
             f_conv_out = self.__add_convlayer(self.model, nkerns[i], subsample, filter_size,
                             input_shape = input_shape, weights = centroid_weights,
-                            flatten=is_last)
+                            flatten=is_last, add_max_pooling=True)
 
             # Pass inputs through see what output is.
             tmp_data = np.empty(input_shape)
@@ -321,7 +324,7 @@ class ModelWrapper(object):
 
 
     def __add_convlayer(self, model, nkern, subsample, filter_size, flatten=False, input_shape=None,
-            weights=None, activation_func='relu'):
+            weights=None, activation_func='relu', add_max_pooling=True):
         """
         Helper method to add a convolution layer.
         """
@@ -341,16 +344,17 @@ class ModelWrapper(object):
         else:
             ph.disp('Setting random weights')
 
-        max_pooling_out = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))
-        model.add(max_pooling_out)
-
         activation_layer = Activation(activation_func)
         model.add(activation_layer)
 
         ph.disp('Conv input shape ' + str(conv_layer.input_shape))
         ph.disp('Conv weights shape ' + str(conv_layer.get_weights()[0].shape))
         ph.disp('Conv Output Shape ' + str(conv_layer.output_shape))
-        ph.disp('Max Pooling Output Shape ' + str(max_pooling_out.output_shape))
+
+        if add_max_pooling:
+            max_pooling_out = MaxPooling2D(pool_size=(2, 2), strides=(2, 2))
+            model.add(max_pooling_out)
+            ph.disp('Max Pooling Output Shape ' + str(max_pooling_out.output_shape))
 
         if flatten:
             ph.disp('Flattening output')
@@ -359,6 +363,8 @@ class ModelWrapper(object):
 
             print('Flatten Shape ' + str(flatten_layer.output_shape))
             output = flatten_layer.output
+        elif add_max_pooling:
+            output = max_pooling_out.output
         else:
             output = activation_layer.output
 
@@ -644,11 +650,18 @@ class ModelWrapper(object):
             yield [(self.all_train_x[i], indicies_y[i]) for i in indices if i != -1]
 
 
+    def __fetch_clothing_datasets(self):
+        df = pd.read_csv('data/train_cut_bottom.txt')
+        print(df.head())
+        raise ValueError()
+
     def __fetch_data(self, test_size, use_amount=None):
         """
         Get the data and select the correct amount of it.
         """
         (train_data, train_labels), (test_data, test_labels) = cifar10.load_data()
+        #self.__fetch_clothing_datasets()
+
         #dataset = datasets.fetch_mldata('MNIST Original')
 
         #data = dataset.data.reshape((dataset.data.shape[0], 28, 28))
@@ -656,6 +669,37 @@ class ModelWrapper(object):
 
         ## Seed the random state in the data split.
         #(train_data, test_data, train_labels, test_labels) = train_test_split(data / 255.0, dataset.target.astype('int'), test_size=test_size, random_state=42)
+
+        train_data = train_data / 255.0
+        test_data = test_data / 255.0
+
+        train_data = train_data.reshape(-1, 3, 32 * 32)
+
+        #ph.disp('ZCA Whitening')
+        #try:
+        #    with open('data/preprocessing/cifar_zca.h5', 'rb') as f:
+        #        zca_mat = pickle.load(f)
+        #except IOError:
+        #    zca_mat = zca_whitening_matrix(train_data)
+        #    with open('data/preprocessing/cifar_zca.h5', 'wb') as f:
+        #        pickle.dump(zca_mat, f)
+        #ph.disp('Finished ZCA Whitening')
+        #train_data = np.dot(zca_mat, train_data)
+        #test_data = np.dot(zca_mat, test_data)
+        #train_data = preprocessing.scale(train_data)
+
+        def mean_channel(image):
+            return [channel - np.mean(channel) for channel in image]
+
+        #ph.disp('Preprocessing images')
+        #train_data = [[preprocessing.scale(channel) for channel in sample] for
+        #        sample in train_data]
+        #ph.disp('Finished preprocesing images')
+
+        #train_data = [mean_channel(train_sample) for train_sample in train_data]
+        train_data = np.array(train_data)
+
+        train_data = train_data.reshape(-1, 3, 32, 32)
 
         train_labels = np_utils.to_categorical(train_labels, 10)
         test_labels = np_utils.to_categorical(test_labels, 10)
