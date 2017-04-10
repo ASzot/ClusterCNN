@@ -1,5 +1,6 @@
 import csv
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 
 from scipy.cluster.vq import whiten
@@ -33,6 +34,8 @@ class ModelAnalyzer(ModelWrapper):
 
 
     def check_vecs(self, check_vecs, check_labels):
+        data_filename = 'cut_upper'
+
         ph.disp('Checking %i vectors' % len(check_vecs))
         transformed_x = self.final_fc_out([check_vecs])[0]
         transformed_x = pre_process_clusters(transformed_x, False)
@@ -48,28 +51,65 @@ class ModelAnalyzer(ModelWrapper):
             pred_labels = self.predictor.predict(transformed_x)
         else:
             closest_anchor_vecs = get_closest_vectors(centroids, zip(transformed_x, train_y))
-            pred_labels = [closest_anchor_vec[2] for closest_anchor_vec in closest_anchor_vecs]
+            pred_labels = [int(closest_anchor_vec[2]) for closest_anchor_vec in closest_anchor_vecs]
+            dists = [closest_anchor_vec[3] for closest_anchor_vec in closest_anchor_vecs]
+
+        headers = ['Sample Number', 'Closest Cluster', 'Distances']
+        raw_df = {headers[0]: range(len(pred_labels)),
+                headers[1]: pred_labels,
+                headers[2]: dists}
+        df = pd.DataFrame(raw_df, columns=headers)
+        df.to_csv('data/output/' + data_filename + 'all.csv', index=False)
 
         all_freqs = []
         right = []
         wrong = []
 
+        mismatched_center = 0
+
+        center_images = []
+        center_images_index = []
+
         for i in range(len(centroids)):
             real_labels = []
             transformed_cluster = []
             orig_samples = []
+            cluster_dists = []
+            to_orig_indices = []
 
             for j, pred_label in enumerate(pred_labels):
                 if i == pred_label:
                     real_labels.append(train_y[j])
+                    cluster_dists.append(dists[j])
                     transformed_cluster.append(transformed_x[j])
                     orig_samples.append(check_vecs[j])
+                    to_orig_indices.append(j)
+
+            # Get the sample closest to the cluster centroid.
+            min_cluster_dist = -1
+            select_index = -1
+            for j, cluster_dist in enumerate(cluster_dists):
+                if cluster_dist < min_cluster_dist or min_cluster_dist == -1:
+                    min_cluster_dist = cluster_dist
+                    select_index = j
+
+            if select_index != -1:
+                center_images.append(to_orig_indices[select_index])
+                center_images_index.append(i)
 
             label_freqs = list(get_freq_percents(real_labels))
             label_freqs = sorted(label_freqs, key=lambda x: x[1], reverse=True)
 
             if len(label_freqs) > 0:
                 right.append(label_freqs[0][1])
+                primary_index = label_freqs[0][0]
+                # Get the label of the sample closest to the centroid
+                center_label = real_labels[select_index]
+
+                #ph.disp('%i -> %i' % (primary_index, int(center_label)))
+                if center_label != primary_index:
+                    mismatched_center += 1
+
                 for label_freq in label_freqs[1:]:
                     wrong.append(label_freq[1])
 
@@ -77,8 +117,16 @@ class ModelAnalyzer(ModelWrapper):
             #if (belong_total == 0):
             #    print('Zero vectors belong to this cluster')
 
+        ph.disp('%i have mismatched center' % mismatched_center)
+
         accuracy = float(sum(right)) / float(sum(wrong) + sum(right))
         ph.disp('Accuracy %.2f' % ((accuracy) * 100.0))
+
+        raw_dataframe = {'Cluster Index': center_images_index,
+                'Center Image': center_images}
+
+        df = pd.DataFrame(raw_dataframe, columns=['Cluster Index', 'Center Image'])
+        df.to_csv('data/output/' + data_filename + '.csv', index=False)
 
 
     def prune_neurons(self):

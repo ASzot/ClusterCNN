@@ -38,9 +38,9 @@ def get_hyperparams():
     # at layer i. For instance with the below numbers 30% of the max variance samples
     # will be selected at each layer of the network.
     #selection = [80000, 4000, 5000, None, None]
-    cluster_count = 20000
-    selection = [5000, 10000, 5000, 10000, 10000, None, None]
-    selection = [10000] * 50
+    cluster_count = 60000
+    selection = [10000, 10000, None, 10000, 10000, None, None]
+    #selection = [10000] * 50
 
     # The cluster count is another highly sensitive parameter.
     # The cluster count defines how many of the samples are passed through the
@@ -174,7 +174,7 @@ def single_test():
 
     hyperparams = get_hyperparams()
     hyperparams.extra_path = 'kmeans'
-    force_create = [False, False, False, True, True, True]
+    force_create = [True, True, True, True, True, True]
     model = ModelAnalyzer(hyperparams, force_create=force_create)
     model.create_model()
     model.check_closest()

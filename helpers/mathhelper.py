@@ -34,16 +34,16 @@ def get_closest_anchor(xy, anchor_vecs):
         # Follow the formula that the euclidean distance is just.
         #||a - b||^2 = ||a||^2 + ||b||^2 -2 <a, b>
         dist = 2.0 - (2.0 * np.dot(x, anchor_vec))
-        if np.absolute(dist - min_dist) < 0.01:
-            # Cannot be resolved.
-            select_index = None
-            break
+        #if np.absolute(dist - min_dist) < 0.01:
+        #    # Cannot be resolved.
+        #    select_index = None
+        #    break
         if min_dist == -1 or dist < min_dist:
             min_dist = dist
             select_index = i
 
     assert (select_index != -1), "No final layer vectors"
-    return (x, y, select_index)
+    return (x, y, select_index, min_dist)
 
 
 def get_closest_vectors(ref_vecs, compare_vecs):

@@ -15,11 +15,13 @@ from helpers.printhelper import print_cm
 from model_layers.discriminatory_filter import DiscriminatoryFilter
 
 import numpy as np
+import pandas as pd
 
 from sklearn.cross_validation import train_test_split
 from sklearn import datasets
 import sklearn.preprocessing as preprocessing
 from scipy.spatial.distance import cosine as cosine_dist
+import scipy.ndimage
 from sklearn.metrics.pairwise import euclidean_distances
 
 import csv
@@ -651,16 +653,36 @@ class ModelWrapper(object):
 
 
     def __fetch_clothing_datasets(self):
-        df = pd.read_csv('data/train_cut_bottom.txt')
-        print(df.head())
-        raise ValueError()
+        df = pd.read_csv('data/train_cut_upper.txt', header=None,
+                delim_whitespace=True)
+
+        samples = []
+        labels = []
+        for row in df.itertuples():
+            image_name = row[1]
+            image_label = row[3]
+
+            image_data = scipy.ndimage.imread('data/BB_cut_25_resize/' + image_name)
+            samples.append(image_data)
+            labels.append(image_label)
+        samples = np.array(samples)
+        labels = np.array(labels)
+
+        samples = samples.reshape(-1, 3, 32, 32)
+        labels = np_utils.to_categorical(labels, np.amin(labels))
+
+        return (samples, labels)
+
 
     def __fetch_data(self, test_size, use_amount=None):
         """
         Get the data and select the correct amount of it.
         """
-        (train_data, train_labels), (test_data, test_labels) = cifar10.load_data()
-        #self.__fetch_clothing_datasets()
+        ph.disp('Loading dataset')
+        #(train_data, train_labels), (test_data, test_labels) = cifar10.load_data()
+        (train_data, train_labels) = self.__fetch_clothing_datasets()
+        test_data = np.empty([])
+        test_labels = np.empty([])
 
         #dataset = datasets.fetch_mldata('MNIST Original')
 
@@ -701,14 +723,17 @@ class ModelWrapper(object):
 
         train_data = train_data.reshape(-1, 3, 32, 32)
 
-        train_labels = np_utils.to_categorical(train_labels, 10)
-        test_labels = np_utils.to_categorical(test_labels, 10)
+        #train_labels = np_utils.to_categorical(train_labels, 10)
+        #test_labels = np_utils.to_categorical(test_labels, 10)
 
         if use_amount is not None:
             train_data = np.array(train_data[0:use_amount])
             train_labels = np.array(train_labels[0:use_amount])
-            test_data = np.array(test_data[0:use_amount])
-            test_labels = np.array(test_labels[0:use_amount])
+            if (len(test_data.shape) > 0):
+                test_data = np.array(test_data[0:use_amount])
+                test_labels = np.array(test_labels[0:use_amount])
+
+        ph.disp('Finished loading dataset')
 
         return (train_data, test_data, train_labels, test_labels)
 
