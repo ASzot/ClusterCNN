@@ -15,16 +15,22 @@ from scipy.spatial.distance import cosine as cosine_dist
 from scipy.spatial.distance import euclidean as euclidean_dist
 
 
+def opt_compute_dist(a, b):
+    return 2.0 - (2.0 * np.dot(a, b))
+
 def get_freq_percents(labels):
     y = np.bincount(labels)
     ii = np.nonzero(y)[0]
     return np.vstack((ii,y[ii])).T
 
 
-def get_closest_anchor(xy, anchor_vecs):
+def get_closest_anchor(xy, anchor_vecs, too_close_thresh):
     x, y = xy
     # Get the closest anchor vector for this sample.
     min_dist = -1
+    # Centroid indices that the sample is "too close" to.
+    too_close = []
+
     select_index = -1
 
     for i, anchor_vec in enumerate(anchor_vecs):
@@ -33,7 +39,7 @@ def get_closest_anchor(xy, anchor_vecs):
         #dist = np.absolute(angle)
         # Follow the formula that the euclidean distance is just.
         #||a - b||^2 = ||a||^2 + ||b||^2 -2 <a, b>
-        dist = 2.0 - (2.0 * np.dot(x, anchor_vec))
+        dist = opt_compute_dist(x, anchor_vec)
         #if np.absolute(dist - min_dist) < 0.01:
         #    # Cannot be resolved.
         #    select_index = None
@@ -42,13 +48,19 @@ def get_closest_anchor(xy, anchor_vecs):
             min_dist = dist
             select_index = i
 
+    for i, anchor_vec in enumerate(anchor_vecs):
+        dist = opt_compute_dist(x, anchor_vec)
+        if np.absolute(min_dist - dist) < too_close_thresh:
+            too_close.append(i)
+
+
     assert (select_index != -1), "No final layer vectors"
-    return (x, y, select_index, min_dist)
+    return (x, y, select_index, min_dist, too_close)
 
 
-def get_closest_vectors(ref_vecs, compare_vecs):
+def get_closest_vectors(ref_vecs, compare_vecs, too_close_thresh = 0.001):
     get_closest_f = partial(get_closest_anchor,
-            anchor_vecs = ref_vecs)
+            anchor_vecs = ref_vecs, too_close_thresh = too_close_thresh)
 
     with Pool(processes=cpu_count()) as p:
         sample_anchor_vecs = p.map(get_closest_f, compare_vecs)

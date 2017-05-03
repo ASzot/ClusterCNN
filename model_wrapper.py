@@ -136,7 +136,8 @@ class ModelWrapper(object):
             output_shape = (nkerns[i], input_shape[0], filter_size[0], filter_size[1])
             assert_shape = (nkerns[i], input_shape[0] * filter_size[0] * filter_size[1])
 
-            add_max_pool = (i % 2 == 1)
+            #add_max_pool = (i % 2 == 1)
+            add_max_pool = True
             centroid_weights = kmeans_handler.handle_kmeans(i, 'c' + str(i), nkerns[i],
                     input_shape, output_shape, True, assert_shape =
                     assert_shape)
@@ -145,9 +146,10 @@ class ModelWrapper(object):
                 ph.disp('Setting layer weights.')
 
             is_last = (i == len(nkerns) - 1)
+            activation_func = 'relu'
             f_conv_out = self.__add_convlayer(self.model, nkerns[i], subsample, filter_size,
                             input_shape = input_shape, weights = centroid_weights,
-                            flatten=is_last, add_max_pooling=True)
+                            flatten=is_last, add_max_pooling=add_max_pool)
 
             # Pass inputs through see what output is.
             tmp_data = np.empty(input_shape)
@@ -346,8 +348,9 @@ class ModelWrapper(object):
         else:
             ph.disp('Setting random weights')
 
-        activation_layer = Activation(activation_func)
-        model.add(activation_layer)
+        if activation_func != 'none':
+            activation_layer = Activation(activation_func)
+            model.add(activation_layer)
 
         ph.disp('Conv input shape ' + str(conv_layer.input_shape))
         ph.disp('Conv weights shape ' + str(conv_layer.get_weights()[0].shape))
@@ -368,7 +371,10 @@ class ModelWrapper(object):
         elif add_max_pooling:
             output = max_pooling_out.output
         else:
-            output = activation_layer.output
+            if activation_func != 'none':
+                output = activation_layer.output
+            else:
+                output = conv_layer.output
 
         # The function is the output of the conv / pooling layers.
         convout_f = K.function([conv_layer.input], [output])
@@ -383,9 +389,9 @@ class ModelWrapper(object):
 
         model.add(dense_layer)
 
-        ph.disp('FC Input Shape ' + str(dense_layer.input_shape))
-        ph.disp('FC transformation ' + str(dense_layer.get_weights()[0].shape))
-        ph.disp('FC Output Shape ' + str(dense_layer.output_shape))
+        ph.disp('Dense Input Shape ' + str(dense_layer.input_shape))
+        ph.disp('Dense transformation ' + str(dense_layer.get_weights()[0].shape))
+        ph.disp('Dense Output Shape ' + str(dense_layer.output_shape))
 
         if not weights is None:
             bias = dense_layer.get_weights()[1]
@@ -393,6 +399,9 @@ class ModelWrapper(object):
             dense_layer.set_weights([weights, bias])
         else:
             ph.disp('Setting random weights')
+
+        #fcOutLayer = Activation('relu')
+        #model.add(fcOutLayer)
 
 
     def __add_fclayer(self, model, output_dim, weights=None, activation_func='relu'):
@@ -679,10 +688,10 @@ class ModelWrapper(object):
         Get the data and select the correct amount of it.
         """
         ph.disp('Loading dataset')
-        #(train_data, train_labels), (test_data, test_labels) = cifar10.load_data()
-        (train_data, train_labels) = self.__fetch_clothing_datasets()
-        test_data = np.empty([])
-        test_labels = np.empty([])
+        (train_data, train_labels), (test_data, test_labels) = cifar10.load_data()
+        #(train_data, train_labels) = self.__fetch_clothing_datasets()
+        #test_data = np.empty([])
+        #test_labels = np.empty([])
 
         #dataset = datasets.fetch_mldata('MNIST Original')
 
@@ -723,8 +732,8 @@ class ModelWrapper(object):
 
         train_data = train_data.reshape(-1, 3, 32, 32)
 
-        #train_labels = np_utils.to_categorical(train_labels, 10)
-        #test_labels = np_utils.to_categorical(test_labels, 10)
+        train_labels = np_utils.to_categorical(train_labels, 10)
+        test_labels = np_utils.to_categorical(test_labels, 10)
 
         if use_amount is not None:
             train_data = np.array(train_data[0:use_amount])

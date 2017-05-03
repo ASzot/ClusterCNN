@@ -37,7 +37,8 @@ the installer for Anaconda [here](https://www.continuum.io/downloads).
   * Unfortunately installing Theano and Keras through the `conda install`
     command does not work.
   * `pip install Theano`
-  * `pip install Keras`
+  * `pip install Keras` Be sure to install Keras < version 2.0. The code will
+    not work with version 2.
   * Install the MutlicoreTSNE package:
     * `git clone https://github.com/DmitryUlyanov/Multicore-TSNE.git`
     * `cd Multicore-TSNE`

@@ -3,10 +3,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+import xgboost as xgb
+
 from scipy.cluster.vq import whiten
 
 import pickle
 import random
+import collections
 
 from helpers.mathhelper import *
 from helpers.printhelper import PrintHelper as ph
@@ -16,6 +19,7 @@ from MulticoreTSNE import MulticoreTSNE as TSNE
 import sklearn.preprocessing as preprocessing
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import accuracy_score
 
 from model_wrapper import ModelWrapper
 
@@ -28,6 +32,49 @@ class ModelAnalyzer(ModelWrapper):
     what is going on in the network.
     """
 
+    def __init__(self, hyperparams, force_create):
+        self.close_vecs_indices = []
+        self.pred_to_real_map = {}
+        self.pred_labels = []
+        self.use_x = []
+
+        super().__init__(hyperparams, force_create)
+
+
+    def train_classifier(self):
+        # Print out statistics about how evenly spread out the predicted labels
+        # are.
+        #counter = collections.Counter(self.pred_to_real_map.values())
+        #print(counter.values())
+
+        # skip samples that are too close to be certain and just ask for human
+        # label.
+        clear_sample_labels = []
+
+        ph.disp('Using %i real labels' % len(self.close_vecs_indices))
+
+        for i in range(len(self.use_x)):
+            if i in self.close_vecs_indices:
+                clear_sample_labels.append(self.use_y[i])
+            else:
+                clear_sample_labels.append(self.pred_to_real_map[self.pred_labels[i]])
+
+        clf = xgb.XGBClassifier(max_depth=20,
+                n_estimators=20,
+                min_child_weight=20,
+                nthread=-1,
+                learning_rate=0.05,
+                subsample=0.80,
+                colsample_bytree=0.80)
+
+        clf.fit(self.use_x, clear_sample_labels, eval_set=[(self.use_x,
+            self.use_y)], eval_metric = 'merror', verbose=True)
+
+        pred_x = clf.predict(self.use_x)
+
+        print('Accuracy %.9f' % accuracy_score(pred_x, self.use_y))
+
+
     def check_closest(self):
         #self.check_vecs(self.all_test_x, self.all_test_y)
         self.check_vecs(self.all_train_x, self.all_train_y)
@@ -36,11 +83,15 @@ class ModelAnalyzer(ModelWrapper):
     def check_vecs(self, check_vecs, check_labels):
         data_filename = 'cut_upper'
 
+
         ph.disp('Checking %i vectors' % len(check_vecs))
         transformed_x = self.final_fc_out([check_vecs])[0]
         transformed_x = pre_process_clusters(transformed_x, False)
 
+        self.use_x = transformed_x
+
         train_y = convert_onehot_to_index(check_labels)
+        self.use_y = train_y
 
         anchor_vecs = get_anchor_vectors(self)
 
@@ -50,16 +101,29 @@ class ModelAnalyzer(ModelWrapper):
         if self.predictor is not None:
             pred_labels = self.predictor.predict(transformed_x)
         else:
-            closest_anchor_vecs = get_closest_vectors(centroids, zip(transformed_x, train_y))
+            closest_anchor_vecs = get_closest_vectors(centroids,
+                    zip(transformed_x, train_y), too_close_thresh=0.01)
+
             pred_labels = [int(closest_anchor_vec[2]) for closest_anchor_vec in closest_anchor_vecs]
             dists = [closest_anchor_vec[3] for closest_anchor_vec in closest_anchor_vecs]
+            closest = [len(closest_anchor_vec[4]) for closest_anchor_vec in
+                    closest_anchor_vecs]
 
-        headers = ['Sample Number', 'Closest Cluster', 'Distances']
-        raw_df = {headers[0]: range(len(pred_labels)),
-                headers[1]: pred_labels,
-                headers[2]: dists}
-        df = pd.DataFrame(raw_df, columns=headers)
-        df.to_csv('data/output/' + data_filename + 'all.csv', index=False)
+            self.close_vecs_indices = [i for i in range(len(closest)) if closest[i] > 1]
+            self.pred_labels = pred_labels
+
+        #print('The mean number of closest clusters')
+        #closest = np.array(closest)
+        #print(np.mean(closest))
+        #print('Out of %i' % len(closest))
+        #print((closest > 1).sum())
+
+        #headers = ['Sample Number', 'Closest Cluster', 'Distances']
+        #raw_df = {headers[0]: range(len(pred_labels)),
+        #        headers[1]: pred_labels,
+        #        headers[2]: dists}
+        #df = pd.DataFrame(raw_df, columns=headers)
+        #df.to_csv('data/output/' + data_filename + 'all.csv', index=False)
 
         all_freqs = []
         right = []
@@ -103,6 +167,8 @@ class ModelAnalyzer(ModelWrapper):
             if len(label_freqs) > 0:
                 right.append(label_freqs[0][1])
                 primary_index = label_freqs[0][0]
+
+                self.pred_to_real_map[i] = primary_index
                 # Get the label of the sample closest to the centroid
                 center_label = real_labels[select_index]
 
@@ -122,11 +188,11 @@ class ModelAnalyzer(ModelWrapper):
         accuracy = float(sum(right)) / float(sum(wrong) + sum(right))
         ph.disp('Accuracy %.2f' % ((accuracy) * 100.0))
 
-        raw_dataframe = {'Cluster Index': center_images_index,
-                'Center Image': center_images}
+        #raw_dataframe = {'Cluster Index': center_images_index,
+        #        'Center Image': center_images}
 
-        df = pd.DataFrame(raw_dataframe, columns=['Cluster Index', 'Center Image'])
-        df.to_csv('data/output/' + data_filename + '.csv', index=False)
+        #df = pd.DataFrame(raw_dataframe, columns=['Cluster Index', 'Center Image'])
+        #df.to_csv('data/output/' + data_filename + '.csv', index=False)
 
 
     def prune_neurons(self):

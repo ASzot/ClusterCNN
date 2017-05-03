@@ -488,8 +488,8 @@ def recur_apply_kmeans(layer_cluster_vecs, k, batch_size, min_cluster_samples,
         label_freqs = sorted(label_freqs, key=lambda x: x[1], reverse=True)
 
         this_cluster_var = np.var(this_cluster)
-        print(pre_txt + str(len(this_cluster)) + '_' + ('%.9f' %
-            this_cluster_var) + '_' + str(label_freqs))
+        #print(pre_txt + str(len(this_cluster)) + '_' + ('%.9f' %
+        #    this_cluster_var) + '_' + str(label_freqs))
 
         disp_str = ''
         if len(label_freqs) > 0:
@@ -611,7 +611,7 @@ def construct_centroids(raw_save_loc, batch_size, train_set_x, input_shape, stri
     The entry point for creating the centroids for input samples for a given layer.
     """
 
-    raw_save_loc = 'data/tmp.h5'
+    #raw_save_loc = 'data/tmp.h5'
     raw_save_loc = ''
     try:
         raise IOError()
