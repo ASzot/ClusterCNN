@@ -12,7 +12,7 @@ This experiment serves to explore if clustering techniques can be used to automa
 The motivation behind this experiment is viewing convolution filter weights as anchor vectors as described in
 [this](https://arxiv.org/abs/1609.04112) paper.
 
-##Requirements
+## Requirements
 * Python 3.6
 * numpy
 * scipy
@@ -23,7 +23,7 @@ The motivation behind this experiment is viewing convolution filter weights as a
 * [MulticoreTSNE](https://github.com/DmitryUlyanov/Multicore-TSNE)
 * [SphereCluster](https://github.com/clara-labs/spherecluster)
 
-##Installation
+## Installation
 I recommend using Anaconda to manage packages and Python versions. You can find
 the installer for Anaconda [here](https://www.continuum.io/downloads). 
 
@@ -57,7 +57,7 @@ the installer for Anaconda [here](https://www.continuum.io/downloads).
 * Deactivate your conda environment
   * `deactivate yourenvname`
 
-##K-Means
+## K-Means
 The effectiveness of the clustering can be determined via the silhouette score.
 
 0.71-1.0
